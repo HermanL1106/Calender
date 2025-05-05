@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>電動機車工單系統</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .container { max-width: 1000px; margin: auto; }
+    label { display: block; margin-top: 10px; }
+    input, select { width: 100%; padding: 8px; margin-top: 5px; }
+    button { margin-top: 15px; padding: 10px 20px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 30px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; vertical-align: top; }
+    .service-items-container { margin-top: 10px; }
+    .service-item-row { display: flex; gap: 10px; margin-top: 5px; }
+    .service-item-row input { flex: 1; }
+    .remove-item { background: red; color: white; border: none; padding: 5px 10px; cursor: pointer; }
+    .action-buttons { display: flex; justify-content: center; gap: 10px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>電動機車工單系統</h1>
+
+    <input type="file" id="importFile" accept=".csv">
+    <button onclick="importWorkOrders()">匯入 CSV 工單</button>
+    <button onclick="exportWorkOrders()">匯出工單 CSV</button>
+    <button onclick="deleteSelectedOrders()">刪除所選工單</button>
+
+    <div style="margin-top: 20px;">
+      <input type="text" id="searchPlate" placeholder="搜尋車牌或工單編號">
+      <label>起始日期：</label>
+      <input type="date" id="startDate">
+      <label>結束日期：</label>
+      <input type="date" id="endDate">
+      <button onclick="searchOrders()">搜尋</button>
+      <button onclick="resetSearch()">重設</button>
+    </div>
+
+    <form id="workOrderForm">
+      <input type="hidden" id="editIndex">
+      <label>工單編號：</label>
+      <input type="text" id="workOrderNumber" readonly>
+      <label>車主姓名：</label>
+      <input type="text" id="ownerName" required>
+      <label>聯絡電話：</label>
+      <input type="text" id="phoneNumber" required>
+      <label>車牌號碼：</label>
+      <input type="text" id="plateNumber" required>
+      <label>里程數：</label>
+      <input type="number" id="mileage" required>
+      <label>維修項目：</label>
+      <div id="serviceItems" class="service-items-container"></div>
+      <button type="button" onclick="addServiceItem()">新增項目</button>
+      <label>技師姓名：</label>
+      <select id="technicianName" required>
+        <option value="Kevin">Kevin</option>
+        <option value="Hank">Hank</option>
+      </select>
+      <label>狀態：</label>
+      <select id="status">
+        <option value="待處理">待處理</option>
+        <option value="處理中">處理中</option>
+        <option value="已完成">已完成</option>
+      </select>
+      <label>日期：</label>
+      <input type="date" id="orderDate" required>
+      <div style="margin-top: 15px;">
+        <button type="submit">儲存工單</button>
+        <button type="button" onclick="resetForm()">重設</button>
+      </div>
+    </form>
+
+    <table id="workOrderTable">
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)"></th>
+          <th>工單編號</th>
+          <th>車主</th>
+          <th>電話</th>
+          <th>車牌</th>
+          <th>里程數</th>
+          <th>維修項目</th>
+          <th>總金額</th>
+          <th>技師</th>
+          <th>狀態</th>
+          <th>日期</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    let workOrders = JSON.parse(localStorage.getItem('workOrders') || '[]');
+
+    document.getElementById('workOrderForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const index = document.getElementById('editIndex').value;
+      const serviceItems = Array.from(document.querySelectorAll('.service-item-row')).map(row => {
+        return {
+          name: row.querySelector('.item-name').value.trim(),
+          cost: parseFloat(row.querySelector('.item-cost').value)
+        };
+      });
+      const totalAmount = serviceItems.reduce((sum, item) => sum + (item.cost || 0), 0);
+      const newOrder = {
+        workOrderNumber: document.getElementById('orderDate').value.replace(/-/g, '') + '-' + (index !== '' ? workOrders[index].workOrderNumber.split('-')[1] : (workOrders.length + 1).toString().padStart(3, '0')),
+        ownerName: document.getElementById('ownerName').value.trim(),
+        phoneNumber: document.getElementById('phoneNumber').value.trim(),
+        plateNumber: document.getElementById('plateNumber').value.trim(),
+        mileage: document.getElementById('mileage').value.trim(),
+        serviceItems: serviceItems,
+        technicianName: document.getElementById('technicianName').value,
+        status: document.getElementById('status').value,
+        date: document.getElementById('orderDate').value,
+        totalAmount: totalAmount
+      };
+      if (index === '') {
+        workOrders.push(newOrder);
+      } else {
+        workOrders[index] = newOrder;
+      }
+      saveToLocalStorage();
+      displayWorkOrders(workOrders);
+      this.reset();
+      document.getElementById('serviceItems').innerHTML = '';
+      document.getElementById('editIndex').value = '';
+      alert('工單已儲存！');
+    });
+
+    function resetForm() {
+      document.getElementById('workOrderForm').reset();
+      document.getElementById('serviceItems').innerHTML = '';
+      document.getElementById('editIndex').value = '';
+    }
+
+    function addServiceItem(item = { name: '', cost: '' }) {
+      const container = document.getElementById('serviceItems');
+      const div = document.createElement('div');
+      div.className = 'service-item-row';
+      div.innerHTML = `
+        <input type="text" class="item-name" placeholder="項目名稱" value="${item.name}">
+        <input type="number" class="item-cost" placeholder="金額" value="${item.cost}">
+        <button type="button" class="remove-item" onclick="this.parentElement.remove()">刪除</button>
+      `;
+      container.appendChild(div);
+    }
+
+    function displayWorkOrders(orders) {
+      const tbody = document.querySelector('#workOrderTable tbody');
+      tbody.innerHTML = '';
+      orders.forEach((order, index) => {
+        let items = '';
+        if (order.serviceItems.length === 1 && order.serviceItems[0].name.includes(';')) {
+          items = order.serviceItems[0].name;
+        } else {
+          items = order.serviceItems.map((item, i) => `${i + 1}. ${item.name}`).join('<br>');
+        }
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td><input type="checkbox" class="select-order" data-index="${index}"></td>
+          <td>${order.workOrderNumber}</td>
+          <td>${order.ownerName}</td>
+          <td>${order.phoneNumber}</td>
+          <td>${order.plateNumber}</td>
+          <td>${order.mileage}</td>
+          <td>${items}</td>
+          <td>${order.totalAmount || 0}</td>
+          <td>${order.technicianName}</td>
+          <td>${order.status}</td>
+          <td>${order.date}</td>
+          <td>
+            <div class="action-buttons">
+              <button onclick="editWorkOrder(${index})">編輯</button>
+              <button onclick="deleteWorkOrder(${index})">刪除</button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    function toggleSelectAll(source) {
+      const checkboxes = document.querySelectorAll('.select-order');
+      checkboxes.forEach(box => box.checked = source.checked);
+    }
+
+    function deleteSelectedOrders() {
+      const selected = Array.from(document.querySelectorAll('.select-order:checked'));
+      if (selected.length === 0) {
+        alert('請先勾選要刪除的工單');
+        return;
+      }
+      const confirm1 = confirm(`確定要刪除已選取的 ${selected.length} 筆工單嗎？`);
+      if (confirm1) {
+        const confirm2 = confirm('再次確認：刪除後將無法恢復，是否繼續？');
+        if (confirm2) {
+          const indexes = selected.map(checkbox => parseInt(checkbox.getAttribute('data-index'))).sort((a, b) => b - a);
+          indexes.forEach(idx => workOrders.splice(idx, 1));
+          saveToLocalStorage();
+          displayWorkOrders(workOrders);
+          alert('已刪除所選工單');
+        }
+      }
+    }
+
+    function editWorkOrder(index) {
+      const order = workOrders[index];
+      document.getElementById('editIndex').value = index;
+      document.getElementById('workOrderNumber').value = order.workOrderNumber;
+      document.getElementById('ownerName').value = order.ownerName;
+      document.getElementById('phoneNumber').value = order.phoneNumber;
+      document.getElementById('plateNumber').value = order.plateNumber;
+      document.getElementById('mileage').value = order.mileage;
+      document.getElementById('technicianName').value = order.technicianName;
+      document.getElementById('status').value = order.status;
+      document.getElementById('orderDate').value = order.date;
+      document.getElementById('serviceItems').innerHTML = '';
+      order.serviceItems.forEach(item => addServiceItem(item));
+    }
+
+    function deleteWorkOrder(index) {
+      const confirm1 = confirm('確定要刪除此工單嗎？');
+      if (confirm1) {
+        const confirm2 = confirm('再次確認：刪除後將無法恢復，是否繼續？');
+        if (confirm2) {
+          workOrders.splice(index, 1);
+          saveToLocalStorage();
+          displayWorkOrders(workOrders);
+          alert('工單已刪除');
+        }
+      }
+    }
+
+    function saveToLocalStorage() {
+      localStorage.setItem('workOrders', JSON.stringify(workOrders));
+    }
+
+    function resetSearch() {
+      document.getElementById('searchPlate').value = '';
+      document.getElementById('startDate').value = '';
+      document.getElementById('endDate').value = '';
+      displayWorkOrders(workOrders);
+    }
+
+    function searchOrders() {
+      const plate = document.getElementById('searchPlate').value.trim();
+      const start = document.getElementById('startDate').value;
+      const end = document.getElementById('endDate').value;
+      const results = workOrders.filter(order => {
+        const matchPlate = plate ? (order.plateNumber.includes(plate) || order.workOrderNumber.includes(plate)) : true;
+        const matchDate = start && end ? (order.date >= start && order.date <= end) : true;
+        return matchPlate && matchDate;
+      });
+      if (results.length === 0) {
+        alert('查無相關工單');
+      }
+      displayWorkOrders(results);
+    }
+
+    function importWorkOrders() {
+      const file = document.getElementById('importFile').files[0];
+      if (!file) {
+        alert('請選擇 CSV 檔案');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const content = e.target.result.replace(/\r/g, '').trim();
+        const lines = content.split('\n').slice(1);
+        lines.forEach(line => {
+          const parts = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g);
+          if (parts && parts.length >= 10) {
+            const [workOrderNumber, ownerName, phoneNumber, plateNumber, mileage, serviceItemsStr, totalAmount, technicianName, status, date] = parts.map(item => item.replace(/^"|"$/g, '').trim());
+            const newOrder = {
+              workOrderNumber,
+              ownerName,
+              phoneNumber,
+              plateNumber,
+              mileage,
+              serviceItems: [{ name: serviceItemsStr, cost: parseFloat(totalAmount) }],
+              technicianName,
+              status,
+              date,
+              totalAmount: parseFloat(totalAmount)
+            };
+            workOrders.push(newOrder);
+          }
+        });
+        saveToLocalStorage();
+        displayWorkOrders(workOrders);
+        alert('匯入完成');
+      };
+      reader.readAsText(file);
+    }
+
+    function exportWorkOrders() {
+      const rows = document.querySelectorAll('#workOrderTable tbody tr');
+      if (rows.length === 0) {
+        alert('目前沒有可匯出的工單');
+        return;
+      }
+      let csvContent = '工單編號,車主,電話,車牌,里程數,維修項目,總金額,技師,狀態,日期\n';
+      rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        const workOrderNumber = cells[1].innerText;
+        const ownerName = cells[2].innerText;
+        const phoneNumber = cells[3].innerText;
+        const plateNumber = cells[4].innerText;
+        const mileage = cells[5].innerText;
+        const serviceItems = cells[6].innerText.replace(/\n/g, '; ').replace(/\$/g, '');
+        const totalAmount = cells[7].innerText;
+        const technicianName = cells[8].innerText;
+        const status = cells[9].innerText;
+        const date = cells[10].innerText;
+        csvContent += `${workOrderNumber},${ownerName},${phoneNumber},${plateNumber},${mileage},"${serviceItems}",${totalAmount},${technicianName},${status},${date}\n`;
+      });
+
+      const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'work_orders.csv';
+      link.click();
+    }
+
+    // 初始化
+    displayWorkOrders(workOrders);
+  </script>
+</body>
+</html>
