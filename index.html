@@ -94,6 +94,8 @@
   </div>
 
   <script>
+    const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxO8123aF6RDSYsBUjn9Ddv7OrB55Y1FFlXzf5_4KL7BJUlSjgOl6GklsNujtfwoIuH/exec';
+
     let workOrders = JSON.parse(localStorage.getItem('workOrders') || '[]');
 
     document.getElementById('workOrderForm').addEventListener('submit', function(e) {
@@ -125,10 +127,26 @@
       }
       saveToLocalStorage();
       displayWorkOrders(workOrders);
+
+      // 送到 Google Sheet
+      fetch(GOOGLE_SHEET_URL, {
+        method: 'POST',
+        body: JSON.stringify(newOrder),
+        headers: { 'Content-Type': 'application/json' }
+      })
+      .then(response => response.text())
+      .then(result => {
+        console.log('Google Sheet 回應:', result);
+        alert('工單已儲存並送出到 Google Sheet！');
+      })
+      .catch(error => {
+        console.error('Google Sheet 錯誤:', error);
+        alert('儲存到 Google Sheet 時發生錯誤！');
+      });
+
       this.reset();
       document.getElementById('serviceItems').innerHTML = '';
       document.getElementById('editIndex').value = '';
-      alert('工單已儲存！');
     });
 
     function resetForm() {
