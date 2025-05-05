@@ -17,7 +17,13 @@
     .service-item-row input { flex: 1; }
     .remove-item { background: red; color: white; border: none; padding: 5px 10px; cursor: pointer; }
     .action-buttons { display: flex; justify-content: center; gap: 10px; }
+    th { position: sticky; top: 0; background: #f9f9f9; z-index: 1; }
   </style>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-analytics-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 </head>
 <body>
   <div class="container">
@@ -94,7 +100,20 @@
   </div>
 
   <script>
-    const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbx7PeLFG7x0n0opMrbc1vSEyuyFKq_I1jjUTRvl_LxHVAkqdMDSmPq_36iVh0Ch5d_T/exec';
+    // Firebase 設定
+    const firebaseConfig = {
+      apiKey: "AIzaSyCJRG7xReo0_dx-ZaJhaUVIEU58JifmVAk",
+      authDomain: "electric-bike-workorders.firebaseapp.com",
+      projectId: "electric-bike-workorders",
+      storageBucket: "electric-bike-workorders.firebasestorage.app",
+      messagingSenderId: "41212869744",
+      appId: "1:41212869744:web:be69af07e77e816efb88b5",
+      measurementId: "G-V3VTZZ0T59"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    firebase.analytics();
+    const db = firebase.firestore();
 
     let workOrders = JSON.parse(localStorage.getItem('workOrders') || '[]');
 
@@ -128,21 +147,15 @@
       saveToLocalStorage();
       displayWorkOrders(workOrders);
 
-      // 送到 Google Sheet
-      fetch(GOOGLE_SHEET_URL, {
-        method: 'POST',
-	mode: 'no-cors',
-        body: JSON.stringify(newOrder),
-        headers: { 'Content-Type': 'application/json' }
+      // 同步到 Firebase
+      db.collection("workOrders").doc(newOrder.workOrderNumber).set(newOrder)
+      .then(() => {
+        console.log("Firebase 儲存成功");
+        alert("工單已同步到 Firebase！");
       })
-      .then(response => response.text())
-      .then(result => {
-        console.log('Google Sheet 回應:', result);
-        alert('工單已儲存並送出到 Google Sheet！');
-      })
-      .catch(error => {
-        console.error('Google Sheet 錯誤:', error);
-        alert('儲存到 Google Sheet 時發生錯誤！');
+      .catch((error) => {
+        console.error("Firebase 儲存錯誤:", error);
+        alert("儲存到 Firebase 時發生錯誤！");
       });
 
       this.reset();
@@ -172,12 +185,7 @@
       const tbody = document.querySelector('#workOrderTable tbody');
       tbody.innerHTML = '';
       orders.forEach((order, index) => {
-        let items = '';
-        if (order.serviceItems.length === 1 && order.serviceItems[0].name.includes(';')) {
-          items = order.serviceItems[0].name;
-        } else {
-          items = order.serviceItems.map((item, i) => `${i + 1}. ${item.name}`).join('<br>');
-        }
+        const items = order.serviceItems.map((item, i) => `${i + 1}. ${item.name}`).join('<br>');
         const row = document.createElement('tr');
         row.innerHTML = `
           <td><input type="checkbox" class="select-order" data-index="${index}"></td>
@@ -207,146 +215,22 @@
       checkboxes.forEach(box => box.checked = source.checked);
     }
 
-    function deleteSelectedOrders() {
-      const selected = Array.from(document.querySelectorAll('.select-order:checked'));
-      if (selected.length === 0) {
-        alert('請先勾選要刪除的工單');
-        return;
-      }
-      const confirm1 = confirm(`確定要刪除已選取的 ${selected.length} 筆工單嗎？`);
-      if (confirm1) {
-        const confirm2 = confirm('再次確認：刪除後將無法恢復，是否繼續？');
-        if (confirm2) {
-          const indexes = selected.map(checkbox => parseInt(checkbox.getAttribute('data-index'))).sort((a, b) => b - a);
-          indexes.forEach(idx => workOrders.splice(idx, 1));
-          saveToLocalStorage();
-          displayWorkOrders(workOrders);
-          alert('已刪除所選工單');
-        }
-      }
-    }
-
-    function editWorkOrder(index) {
-      const order = workOrders[index];
-      document.getElementById('editIndex').value = index;
-      document.getElementById('workOrderNumber').value = order.workOrderNumber;
-      document.getElementById('ownerName').value = order.ownerName;
-      document.getElementById('phoneNumber').value = order.phoneNumber;
-      document.getElementById('plateNumber').value = order.plateNumber;
-      document.getElementById('mileage').value = order.mileage;
-      document.getElementById('technicianName').value = order.technicianName;
-      document.getElementById('status').value = order.status;
-      document.getElementById('orderDate').value = order.date;
-      document.getElementById('serviceItems').innerHTML = '';
-      order.serviceItems.forEach(item => addServiceItem(item));
-    }
-
-    function deleteWorkOrder(index) {
-      const confirm1 = confirm('確定要刪除此工單嗎？');
-      if (confirm1) {
-        const confirm2 = confirm('再次確認：刪除後將無法恢復，是否繼續？');
-        if (confirm2) {
-          workOrders.splice(index, 1);
-          saveToLocalStorage();
-          displayWorkOrders(workOrders);
-          alert('工單已刪除');
-        }
-      }
-    }
-
     function saveToLocalStorage() {
       localStorage.setItem('workOrders', JSON.stringify(workOrders));
     }
 
-    function resetSearch() {
-      document.getElementById('searchPlate').value = '';
-      document.getElementById('startDate').value = '';
-      document.getElementById('endDate').value = '';
+    // 從 Firebase 載入資料
+    db.collection("workOrders").get().then((querySnapshot) => {
+      workOrders = [];
+      querySnapshot.forEach((doc) => {
+        workOrders.push(doc.data());
+      });
+      saveToLocalStorage();
       displayWorkOrders(workOrders);
-    }
-
-    function searchOrders() {
-      const plate = document.getElementById('searchPlate').value.trim();
-      const start = document.getElementById('startDate').value;
-      const end = document.getElementById('endDate').value;
-      const results = workOrders.filter(order => {
-        const matchPlate = plate ? (order.plateNumber.includes(plate) || order.workOrderNumber.includes(plate)) : true;
-        const matchDate = start && end ? (order.date >= start && order.date <= end) : true;
-        return matchPlate && matchDate;
-      });
-      if (results.length === 0) {
-        alert('查無相關工單');
-      }
-      displayWorkOrders(results);
-    }
-
-    function importWorkOrders() {
-      const file = document.getElementById('importFile').files[0];
-      if (!file) {
-        alert('請選擇 CSV 檔案');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const content = e.target.result.replace(/\r/g, '').trim();
-        const lines = content.split('\n').slice(1);
-        lines.forEach(line => {
-          const parts = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g);
-          if (parts && parts.length >= 10) {
-            const [workOrderNumber, ownerName, phoneNumber, plateNumber, mileage, serviceItemsStr, totalAmount, technicianName, status, date] = parts.map(item => item.replace(/^"|"$/g, '').trim());
-            const newOrder = {
-              workOrderNumber,
-              ownerName,
-              phoneNumber,
-              plateNumber,
-              mileage,
-              serviceItems: [{ name: serviceItemsStr, cost: parseFloat(totalAmount) }],
-              technicianName,
-              status,
-              date,
-              totalAmount: parseFloat(totalAmount)
-            };
-            workOrders.push(newOrder);
-          }
-        });
-        saveToLocalStorage();
-        displayWorkOrders(workOrders);
-        alert('匯入完成');
-      };
-      reader.readAsText(file);
-    }
-
-    function exportWorkOrders() {
-      const rows = document.querySelectorAll('#workOrderTable tbody tr');
-      if (rows.length === 0) {
-        alert('目前沒有可匯出的工單');
-        return;
-      }
-      let csvContent = '工單編號,車主,電話,車牌,里程數,維修項目,總金額,技師,狀態,日期\n';
-      rows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        const workOrderNumber = cells[1].innerText;
-        const ownerName = cells[2].innerText;
-        const phoneNumber = cells[3].innerText;
-        const plateNumber = cells[4].innerText;
-        const mileage = cells[5].innerText;
-        const serviceItems = cells[6].innerText.replace(/\n/g, '; ').replace(/\$/g, '');
-        const totalAmount = cells[7].innerText;
-        const technicianName = cells[8].innerText;
-        const status = cells[9].innerText;
-        const date = cells[10].innerText;
-        csvContent += `${workOrderNumber},${ownerName},${phoneNumber},${plateNumber},${mileage},"${serviceItems}",${totalAmount},${technicianName},${status},${date}\n`;
-      });
-
-      const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = 'work_orders.csv';
-      link.click();
-    }
-
-    // 初始化
-    displayWorkOrders(workOrders);
+    }).catch((error) => {
+      console.error("讀取 Firebase 發生錯誤: ", error);
+      displayWorkOrders(workOrders); // 用本地的
+    });
   </script>
 </body>
 </html>
