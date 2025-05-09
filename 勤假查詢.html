@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>勤假查詢</title>
+  <style>
+    body { margin:0; font-family:sans-serif; }
+    .container { display:flex; height:100vh; }
+    aside { width:180px; border-right:1px solid #ccc; padding:10px; box-sizing:border-box; overflow:auto; }
+    aside h2 { margin-top:0; }
+    aside ul { list-style:none; padding:0; }
+    aside li { padding:6px; cursor:pointer; }
+    aside li.active { background:#def; }
+    main { flex:1; padding:20px; box-sizing:border-box; overflow:auto; }
+    form label { display:block; margin:10px 0 4px; }
+    form input, form button { width:100%; padding:8px; box-sizing:border-box; }
+    .result { margin-top:20px; font-size:1.1em; white-space:pre-wrap; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <aside>
+      <h2>員工列表</h2>
+      <ul id="empUl"></ul>
+    </aside>
+    <main>
+      <h1>勤假查詢</h1>
+      <form id="leaveForm">
+        <label>開始日期
+          <input type="date" id="startDate" required/>
+        </label>
+        <label>結束日期
+          <input type="date" id="endDate" required/>
+        </label>
+        <button type="submit">查詢使用</button>
+      </form>
+      <div class="result" id="result"></div>
+    </main>
+  </div>
+
+<script type="module">
+  // —— Firebase 初始化 —— 
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDRgKCsoHWBc1flzJY9ZrUtSYGpCWdoLjw",
+    authDomain: "wutan-calender.firebaseapp.com",
+    projectId: "wutan-calender",
+    storageBucket: "wutan-calender.firebasestorage.app",
+    messagingSenderId: "716247230665",
+    appId: "1:716247230665:web:9baed0888ae66be4988518",
+    measurementId: "G-LKJ92DKZWY"
+  };
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+  const masterDoc = doc(db, "calendarData", "master");
+
+  // —— 本地 & 远程 数据 —— 
+  let employees        = [];
+  let removedEmployees = [];
+  let scheduleData     = {};
+
+  // —— 同步到 Firestore —— 
+  async function syncToFirebase() {
+    await setDoc(masterDoc, {
+      employees,
+      removedEmployees,
+      scheduleData
+    });
+  }
+
+  // —— 从 Firestore 读取（或回退到 localStorage） —— 
+  async function loadFromFirebase() {
+    const snap = await getDoc(masterDoc);
+    if (snap.exists()) {
+      const data = snap.data();
+      employees        = data.employees        || [];
+      removedEmployees = data.removedEmployees || [];
+      scheduleData     = data.scheduleData     || {};
+    } else {
+      // fallback 本地
+      employees        = JSON.parse(localStorage.getItem('employees')        || '[]');
+      removedEmployees = JSON.parse(localStorage.getItem('removedEmployees') || '[]');
+      scheduleData     = JSON.parse(localStorage.getItem('scheduleData')     || '{}');
+      await syncToFirebase();
+    }
+    // mirror 本地
+    localStorage.setItem('employees',        JSON.stringify(employees));
+    localStorage.setItem('removedEmployees', JSON.stringify(removedEmployees));
+    localStorage.setItem('scheduleData',     JSON.stringify(scheduleData));
+  }
+
+  // —— helpers —— 
+  function getCellKey(year, month, emp, day) {
+    const mm = String(month).padStart(2,'0');
+    const dd = String(day).padStart(2,'0');
+    return `${year}-${mm}-${emp}-${dd}`;
+  }
+
+  // —— 当 DOM 就绪时 —— 
+  window.addEventListener('DOMContentLoaded', async () => {
+    await loadFromFirebase();
+
+    const empUl    = document.getElementById('empUl');
+    const startIn  = document.getElementById('startDate');
+    const endIn    = document.getElementById('endDate');
+    const resultDiv= document.getElementById('result');
+
+    let selectedEmp = '';
+
+    // —— 建员工列表 —— 
+    function buildEmployeeList() {
+      const list = employees.filter(e => !removedEmployees.map(r=>r.name).includes(e));
+      empUl.innerHTML = '';
+      if (!list.includes(selectedEmp)) selectedEmp = list[0] || '';
+      list.forEach(emp => {
+        const li = document.createElement('li');
+        li.textContent = emp;
+        if (emp === selectedEmp) li.classList.add('active');
+        li.addEventListener('click', () => {
+          selectedEmp = emp;
+          empUl.querySelectorAll('li').forEach(x => x.classList.remove('active'));
+          li.classList.add('active');
+        });
+        empUl.appendChild(li);
+      });
+    }
+
+    buildEmployeeList();
+    window.addEventListener('storage', buildEmployeeList);
+    window.addEventListener('focus', buildEmployeeList);
+
+    // —— 表单提交 —— 
+    document.getElementById('leaveForm').addEventListener('submit', e => {
+      e.preventDefault();
+      if (!selectedEmp) return alert('請先從左側選擇員工');
+      const start = new Date(startIn.value);
+      const end   = new Date(endIn.value);
+      if (end < start) return alert('結束日不可早於開始日');
+
+      const details = [];
+      const summary = { '事': { days: 0, hours: 0 }, '病': { days: 0, hours: 0 } };
+
+      Object.entries(scheduleData).forEach(([key, val]) => {
+        const parts = key.split('-');
+        const ky = +parts[0], km = +parts[1], kd = +parts[parts.length-1];
+        const emp = parts.slice(2, parts.length - 1).join('-');
+        if (emp !== selectedEmp) return;
+        const dt = new Date(ky, km - 1, kd);
+        if (dt < start || dt > end) return;
+
+        if (val === '事') {
+          summary['事'].days++;
+          details.push(`${dt.toLocaleDateString()} — 事假 全日`);
+        }
+        if (val === '病') {
+          summary['病'].days++;
+          details.push(`${dt.toLocaleDateString()} — 病假 全日`);
+        }
+        const m1 = val.match(/^事(\d+)H$/);
+        if (m1) {
+          const h = +m1[1];
+          summary['事'].hours += h;
+          details.push(`${dt.toLocaleDateString()} — 事假 ${h} 小時`);
+        }
+        const m2 = val.match(/^病(\d+)H$/);
+        if (m2) {
+          const h = +m2[1];
+          summary['病'].hours += h;
+          details.push(`${dt.toLocaleDateString()} — 病假 ${h} 小時`);
+        }
+      });
+
+      ['事','病'].forEach(type => {
+        const extra = Math.floor(summary[type].hours/8);
+        summary[type].days  += extra;
+        summary[type].hours %= 8;
+      });
+
+      let html = `<p>員工：${selectedEmp}<br>` +
+                 `區間：${start.toLocaleDateString()} ～ ${end.toLocaleDateString()}</p>`;
+
+      if (details.length) {
+        html += `<h3>明細</h3><ul>`;
+        details.forEach(d=> html+=`<li>${d}</li>`);
+        html += `</ul>`;
+      } else {
+        html += `<p>本區間無紀錄</p>`;
+      }
+
+      html += `<h3>統計總計</h3><ul>` +
+              `<li>事假：${summary['事'].days} 天 ${summary['事'].hours} 小時</li>` +
+              `<li>病假：${summary['病'].days} 天 ${summary['病'].hours} 小時</li>` +
+              `</ul>`;
+
+      resultDiv.innerHTML = html;
+    });
+  });
+</script>
+
+</body>
+</html>
