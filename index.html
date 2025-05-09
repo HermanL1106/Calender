@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>排班系統</title>
+  <style>
+
+/* 放到最上层、右上角 */
+#quickLinks {
+  position: absolute;
+  top: 10px;    /* 距离页面顶部 10px */
+  right: 10px;  /* 距离页面右侧 10px */
+  display: flex;
+  gap: 8px;
+}
+#quickLinks button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  background: #03a9f4;
+  color: #fff;
+  cursor: pointer;
+}
+#quickLinks button:hover {
+  opacity: 0.9;
+}
+
+
+th.top {
+  position: sticky;
+  top: 0;              /* 第一列貼頂 */
+  background: #CAFFFF;
+  z-index: 2;
+}
+/* 如果第二列也要跟著滾動並貼在第一列下方：*/
+tr:nth-child(2) th {
+  position: sticky;
+  top: 40px;           /* 距離頂端 40px（和第一列高度一致） */
+  background: #CAFFFF;
+  z-index: 1;
+}
+
+	/* 1. 讓整張表格依內容自動分配欄寬 */
+table {
+  table-layout: auto;  /* 原本是 fixed，改成 auto */
+}
+
+/* 2. 移除 th,td 的固定寬度，只保留高度 */
+th, td {
+  border: 3px solid #000;
+  text-align: center;
+  padding: 4px;
+  /* width: 40px;  ← 刪除此行 */
+  height: 40px;
+/* 加上這行，調整為你要的大小 */
+  font-size: 20px;
+}
+
+/* 3. 只有非 sticky 的欄位仍維持 40px 寬 */
+th:not(.sticky),
+td:not(.sticky) {
+  width: 40px;
+}
+
+/* 4. 第一欄 (員工姓名) 自動寬度、不換行 */
+th.sticky,
+td.sticky {
+  position: sticky;
+  left: 0;
+  background: #CAFFFF;
+  z-index: 1;
+  white-space: nowrap;
+  overflow: visible;
+  max-width: none;
+}
+	/* palette 按鈕 */
+button.rest-red         { background:#f44336; color:#fff; }
+button.rest-lightblue   { background:#b3e5fc; color:#000; }
+button.sick             { background:#006400; color:#fff; }
+button.special          { background:#03a9f4; color:#fff; }
+button.personal         { background:#ffeb3b; color:#000; }
+button.training         { background:#9c27b0; color:#fff; }
+button.work             { background:#ffffff; color:#000; }
+/* 在原本的 button 顏色區塊後面加上 */
+button.special-hour {background: #003366;color: #fff;}
+/* 同步 td 樣式 */
+td.special-hour {background: #003366;color: #fff;}
+/* CSS：加在现有 button & td 样式后面 */
+button.personal-hour { background: #ff9800; color: #fff; }
+td.personal-hour     { background: #ff9800; color: #fff; }
+
+button.sick-hour     { background: #004d00; color: #fff; }
+td.sick-hour         { background: #004d00; color: #fff; }
+
+/* 按鈕共用樣式 */
+#palette button {
+  border:none;
+  padding:6px 12px;
+  margin-right:4px;
+  cursor:pointer;
+  border-radius:4px;
+}
+#palette button.active {
+  outline:2px solid #000;
+}
+
+/* 班表格子的顏色 */
+td.rest-red         { background: #f44336; color: #fff; }
+td.rest-lightblue   { background: #b3e5fc; color: #000; }
+td.sick             { background: #006400; color: #fff; }
+td.special          { background: #03a9f4; color: #fff; }
+td.personal         { background: #ffeb3b; color: #000; }
+td.training         { background: #9c27b0; color: #fff; }
+td.work             { background: #fff;    color: #000; }
+
+  </style>
+</head>
+<body>
+<div id="quickLinks">
+  <button onclick="location.href='https://hermanl1106.github.io/Calender.github.io/'">班表</button>
+  <button onclick="location.href='https://hermanl1106.github.io/Calender.github.io/special.html'">特休查詢</button>
+  <button onclick="location.href='https://hermanl1106.github.io/Calender.github.io/check.html'">勤假查詢</button>
+</div>
+
+  <h2 id="monthDisplay">2025/03</h2>
+  <label>年份：<input type="number" id="yearInput" value="2025"></label>
+  <label>月份：<input type="number" id="monthInput" value="3" min="1" max="12"></label>
+  <button onclick="generateTable()">更新</button>
+<div>
+  <button id="addEmpBtn">新增員工</button>
+  <button id="removeEmpBtn">刪除員工</button>
+  <button id="resetAllBtn">全部上班</button>
+	 <button id="unlockBtn">解鎖</button> 
+</div>
+<!-- 顏色按鈕群 -->
+<div id="palette" style="margin:8px 0;">
+  <!-- 按鈕會由下面 JS 自動產生 -->
+</div>
+
+  <table id="scheduleTable">
+    <!-- 生成的表格會插入這裡 -->
+  </table>
+
+
+<script type="module">
+  // —— Firebase 初始化 —— 
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDRgKCsoHWBc1flzJY9ZrUtSYGpCWdoLjw",
+    authDomain: "wutan-calender.firebaseapp.com",
+    projectId: "wutan-calender",
+    storageBucket: "wutan-calender.firebasestorage.app",
+    messagingSenderId: "716247230665",
+    appId: "1:716247230665:web:9baed0888ae66be4988518",
+    measurementId: "G-LKJ92DKZWY"
+  };
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+  const masterDoc = doc(db, "calendarData", "master");
+
+  // —— 本地 & 内存数据 —— 
+  let employees        = [];
+  let removedEmployees = [];
+  let scheduleData     = {};
+  let locked           = true;
+
+  // —— 同步到 Firestore —— 
+  async function syncToFirebase() {
+    await setDoc(masterDoc, {
+      employees,
+      removedEmployees,
+      scheduleData
+    });
+  }
+
+  // —— 从 Firestore 读取（或回退到 localStorage） —— 
+  async function loadFromFirebase() {
+    const snap = await getDoc(masterDoc);
+    if (snap.exists()) {
+      const data = snap.data();
+      employees        = data.employees        || [];
+      removedEmployees = data.removedEmployees || [];
+      scheduleData     = data.scheduleData     || {};
+    } else {
+      // fallback to localStorage
+      employees        = JSON.parse(localStorage.getItem('employees')        || '[]');
+      removedEmployees = JSON.parse(localStorage.getItem('removedEmployees') || '[]');
+      scheduleData     = JSON.parse(localStorage.getItem('scheduleData')     || '{}');
+      await syncToFirebase();
+    }
+    // mirror to localStorage
+    localStorage.setItem('employees',        JSON.stringify(employees));
+    localStorage.setItem('removedEmployees', JSON.stringify(removedEmployees));
+    localStorage.setItem('scheduleData',     JSON.stringify(scheduleData));
+  }
+
+  // —— helpers —— 
+  function getCellKey(year, month, emp, day) {
+    const mm = String(month).padStart(2,'0');
+    const dd = String(day).padStart(2,'0');
+    return `${year}-${mm}-${emp}-${dd}`;
+  }
+
+  // —— 调色盘设置 —— 
+  const palette = [
+    { code:'休', cls:'rest-red' },
+    { code:'休', cls:'rest-lightblue' },
+    { code:'病', cls:'sick' },
+    { code:'特', cls:'special' },
+    { code:'事', cls:'personal' },
+    { code:'訓', cls:'training' },
+    { code:null, cls:'sick-hour',     hourlyType:'病' },
+    { code:null, cls:'personal-hour', hourlyType:'事' },
+    { code:null, cls:'special-hour',  hourlyType:'特' },
+    { code:'●', cls:'work' }
+  ];
+  let currentTool = palette.find(p => p.code === '●');
+
+  function initPalette() {
+    const div = document.getElementById('palette');
+    div.innerHTML = '';
+    palette.forEach(item => {
+      const btn = document.createElement('button');
+      btn.classList.add(item.cls);
+      btn.textContent = item.hourlyType ? `${item.hourlyType}×H` : item.code;
+      btn.addEventListener('click', () => {
+        div.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        if (item.hourlyType) {
+          const h = prompt(`請輸入要記錄的${item.hourlyType}休小時數（整數）`, '3');
+          if (!h || isNaN(h)) return alert('請輸入數字');
+          currentTool = { code:`${item.hourlyType}${Math.floor(h)}H`, cls:item.cls };
+        } else {
+          currentTool = item;
+        }
+      });
+      div.appendChild(btn);
+    });
+    div.querySelector('button.work')?.classList.add('active');
+  }
+
+  // —— 点击单元格应用选中工具 & 保存 —— 
+  async function attachCellClick() {
+    document.querySelectorAll('#scheduleTable td[contenteditable]').forEach(td => {
+      td.onclick = async () => {
+        td.textContent = currentTool.code;
+        td.classList.remove(...palette.map(p=>p.cls));
+        td.classList.add(currentTool.cls);
+        const year  = parseInt(document.getElementById('yearInput').value, 10);
+        const month = parseInt(document.getElementById('monthInput').value, 10);
+        const key   = getCellKey(year, month, td.dataset.emp, td.dataset.day);
+        scheduleData[key] = currentTool.code;
+        localStorage.setItem('scheduleData', JSON.stringify(scheduleData));
+        await syncToFirebase();
+      };
+    });
+  }
+
+  // —— 生成排班表 —— 
+  function generateTable() {
+    const year  = parseInt(document.getElementById('yearInput').value, 10);
+    const month = parseInt(document.getElementById('monthInput').value, 10);
+    document.getElementById('monthDisplay').textContent = `${year}/${String(month).padStart(2,'0')}`;
+    const table = document.getElementById('scheduleTable');
+    table.innerHTML = '';
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    // 首行：日期 + 统计
+    const headerRow1 = document.createElement('tr');
+    headerRow1.innerHTML = `<th class="top sticky">員工</th>` +
+      Array.from({length:daysInMonth}, (_,i)=>`<th class="top">${i+1}</th>`).join('') +
+      `<th class="top">例休</th><th class="top">特休</th><th class="top">病假</th><th class="top">事假</th>`;
+    table.appendChild(headerRow1);
+
+    // 次行：星期 + 空白
+    const headerRow2 = document.createElement('tr');
+    headerRow2.innerHTML = `<th class="top sticky"></th>` +
+      Array.from({length:daysInMonth}, (_,i)=>{
+        const wd = new Date(year,month-1,i+1).getDay();
+        return `<th class="top">週${['日','一','二','三','四','五','六'][wd]}</th>`;
+      }).join('') +
+      `<th class="top"></th><th class="top"></th><th class="top"></th><th class="top"></th>`;
+    table.appendChild(headerRow2);
+
+    // 员工行 + 统计
+    const displayEmps = employees.filter(emp=>{
+      const recs = removedEmployees.filter(r=>r.name===emp);
+      if(!recs.length) return true;
+      recs.sort((a,b)=>(a.year-b.year)||(a.month-b.month));
+      const rec = recs[0];
+      return year<rec.year || (year===rec.year && month<rec.month);
+    });
+    displayEmps.forEach(emp=>{
+      const tr = document.createElement('tr');
+      // 姓名
+      const tdName = document.createElement('td');
+      tdName.classList.add('sticky');
+      tdName.textContent = emp;
+      tdName.style.cursor = locked ? 'default' : 'text';
+      if(!locked) tdName.contentEditable = true;
+      tr.appendChild(tdName);
+      // 每天
+      for(let d=1; d<=daysInMonth; d++){
+        const td = document.createElement('td');
+        td.dataset.emp = emp; td.dataset.day = d;
+        const key = getCellKey(year,month,emp,d);
+        const code = scheduleData[key]||'●';
+        td.textContent = code;
+        let tool = palette.find(p=>p.code===code);
+        if(!tool){
+          const m = code.match(/^([病特事])(\d+)H$/);
+          if(m) tool = palette.find(p=>p.hourlyType===m[1]);
+        }
+        td.classList.add((tool||palette.find(p=>p.code==='●')).cls);
+        td.contentEditable = !locked;
+        td.style.cursor    = locked? 'default':'text';
+        tr.appendChild(td);
+      }
+      // 统计
+      let cnt=[0,0,0,0]; // 例休,特休,病假,事假
+      for(let d=1; d<=daysInMonth; d++){
+        const code = scheduleData[getCellKey(year,month,emp,d)]||'';
+        if(code==='休') cnt[0]++; if(code==='特') cnt[1]++;
+        if(code==='病') cnt[2]++; if(code==='事') cnt[3]++;
+      }
+      cnt.forEach(c=>{
+        const td=document.createElement('td');
+        td.textContent=c; tr.appendChild(td);
+      });
+      table.appendChild(tr);
+    });
+
+    // 上班人數
+    const trCount=document.createElement('tr');
+    trCount.innerHTML = `<td class="sticky">上班人數</td>` +
+      Array.from({length:daysInMonth},(_,i)=>{
+        let c=0;
+        for(let r=2;r<table.rows.length;r++){
+          if(table.rows[r].cells[i+1].classList.contains('work')) c++;
+        }
+        return `<td style="font-weight:bold">${c}</td>`;
+      }).join('') +
+      `<td colspan="4"></td>`;
+    table.appendChild(trCount);
+
+    if(!locked) attachCellClick();
+  }
+
+  // —— 页面加载 & 事件绑定 —— 
+  window.addEventListener('DOMContentLoaded', async ()=>{
+    await loadFromFirebase();
+    // 自动跳到当月
+    const today=new Date();
+    document.getElementById('yearInput').value  = today.getFullYear();
+    document.getElementById('monthInput').value = today.getMonth()+1;
+
+    initPalette();
+    generateTable();
+
+    const addBtn    = document.getElementById('addEmpBtn');
+    const removeBtn = document.getElementById('removeEmpBtn');
+    const resetBtn  = document.getElementById('resetAllBtn');
+    const unlockBtn = document.getElementById('unlockBtn');
+
+    [addBtn,removeBtn,resetBtn].forEach(b=>b.disabled=locked);
+
+    unlockBtn.addEventListener('click', ()=>{
+      const pw=prompt('請輸入解鎖密碼','');
+      if(pw==='123'){
+        locked=false;
+        [addBtn,removeBtn,resetBtn].forEach(b=>b.disabled=false);
+        alert('已解鎖');
+        generateTable();
+      } else alert('密碼錯誤');
+    });
+
+    addBtn.addEventListener('click', async ()=>{
+      if(locked) return alert('請先解鎖');
+      const name=prompt('輸入新員工名稱：')?.trim(); if(!name) return;
+      removedEmployees=removedEmployees.filter(r=>r.name!==name);
+      localStorage.setItem('removedEmployees',JSON.stringify(removedEmployees));
+      if(!employees.includes(name)){
+        employees.push(name);
+        localStorage.setItem('employees',JSON.stringify(employees));
+      } else alert('已存在');
+      await syncToFirebase();
+      generateTable();
+    });
+
+    removeBtn.addEventListener('click', async ()=>{
+      if(locked) return alert('請先解鎖');
+      const name=prompt('輸入要刪除員工：')?.trim(); if(!name||!employees.includes(name)) return alert('找不到');
+      const year=parseInt(document.getElementById('yearInput').value,10),
+            month=parseInt(document.getElementById('monthInput').value,10);
+      removedEmployees.push({name,year,month});
+      localStorage.setItem('removedEmployees',JSON.stringify(removedEmployees));
+      // 清除当月及后续
+      scheduleData = Object.fromEntries(Object.entries(scheduleData).filter(([k])=>{
+        const [ky,km,ename]=k.split('-',3);
+        return !(ename===name && (+ky>year || (+ky===year&&+km>=month)));
+      }));
+      localStorage.setItem('scheduleData',JSON.stringify(scheduleData));
+      await syncToFirebase();
+      generateTable();
+    });
+
+    resetBtn.addEventListener('click', async ()=>{
+      if(locked) return alert('請先解鎖');
+      const year=parseInt(document.getElementById('yearInput').value,10),
+            month=parseInt(document.getElementById('monthInput').value,10);
+      const daysInMonth=new Date(year,month,0).getDate();
+      const displayEmps=employees.filter(emp=>{
+        const recs=removedEmployees.filter(r=>r.name===emp);
+        if(!recs.length)return true;
+        recs.sort((a,b)=>(a.year-b.year)||(a.month-b.month));
+        const rec=recs[0];
+        return year<rec.year||(year===rec.year&&month<rec.month);
+      });
+      displayEmps.forEach(emp=>{
+        for(let d=1;d<=daysInMonth;d++){
+          scheduleData[getCellKey(year,month,emp,d)]='●';
+        }
+      });
+      localStorage.setItem('scheduleData',JSON.stringify(scheduleData));
+      await syncToFirebase();
+      generateTable();
+    });
+
+    document.getElementById('yearInput').addEventListener('change', generateTable);
+    document.getElementById('monthInput').addEventListener('change', generateTable);
+  });
+</script>
+
+
+</body>
+</html>
