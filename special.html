@@ -73,6 +73,7 @@
     </main>
   </div>
 
+
 <script>
 window.addEventListener('DOMContentLoaded', () => {
   const empUl      = document.getElementById('empUl');
@@ -87,35 +88,27 @@ window.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('specialParams', JSON.stringify(specialParams));
   }
 
-  // 計算週期：入職+1年 ～ 入職+3年-1日 → 轉為：當年周年日前兩年 ～ 當年周年日前一日
-// —— 根據入職日與當前日期，自動找出包含今天的「兩年週期」起訖 ——
-// 週期長度：2 年，週期從 H + 2k 年 ～ H + 2(k+1) 年 − 1 天，
-// k 取最小的使今天落入週期內。
-function computeCycle(hireStr) {
-  const today = new Date();
-  const H = new Date(hireStr);
-  // 計算今天距入職的整月數
-  let months = (today.getFullYear() - H.getFullYear()) * 12
-             + (today.getMonth() - H.getMonth());
-  if (today.getDate() < H.getDate()) months--;
-  // 已經過的整年
-  const yearsFull = Math.floor(months / 12);
-  // 週期索引 k
-  const k = Math.floor(yearsFull / 1);
-  // 週期起始
-  const start = new Date(H);
-  start.setFullYear(H.getFullYear() + k * 1);
-  // 週期結束：起始 +2年 −1天
-  const end = new Date(start);
-  end.setFullYear(start.getFullYear() + 1);
-  end.setDate(end.getDate() - 1);
-  return {
-    start: start.toISOString().slice(0,10),
-    end:   end.toISOString().slice(0,10)
-  };
-}
+  // 計算週期：自動選出包含今天的 2 年週期
+  function computeCycle(hireStr) {
+    const today = new Date();
+    const H = new Date(hireStr);
+    let months = (today.getFullYear() - H.getFullYear()) * 12
+               + (today.getMonth() - H.getMonth());
+    if (today.getDate() < H.getDate()) months--;
+    const yearsFull = Math.floor(months / 12);
+    const k = Math.floor(yearsFull / 1);
+    const start = new Date(H);
+    start.setFullYear(H.getFullYear() + k * 1);
+    const end = new Date(start);
+    end.setFullYear(start.getFullYear() + 1);
+    end.setDate(end.getDate() - 1);
+    return {
+      start: start.toISOString().slice(0,10),
+      end:   end.toISOString().slice(0,10)
+    };
+  }
 
-
+  // 計算特休額度
   function getEntitlement(hireDate, endDate) {
     let ym = (endDate.getFullYear() - hireDate.getFullYear()) * 12
            + (endDate.getMonth() - hireDate.getMonth());
@@ -132,51 +125,48 @@ function computeCycle(hireStr) {
     return 0;
   }
 
-function loadEmpParams(emp) {
-  const p = specialParams[emp] || {};
-  if (p.hireDate) {
-    hireInput.value = p.hireDate;
-    // 不讀舊的 cycleStart/cycleEnd，改用最新計算：
-    const { start, end } = computeCycle(p.hireDate);
-    cycleStart.value = start;
-    cycleEnd.value   = end;
-    // 同步更新 specialParams 裡的值，保證下次也正確
-    p.cycleStart = start;
-    p.cycleEnd   = end;
-    totalEnt.value   = getEntitlement(new Date(p.hireDate), new Date(end));
-    totalEnt.readOnly = true;
-    saveSpecialParams();
-  } else {
-    hireInput.value = '';
-    cycleStart.value = '';
-    cycleEnd.value   = '';
-    totalEnt.value   = '';
+  // 載入並即時計算週期與額度
+  function loadEmpParams(emp) {
+    const p = specialParams[emp] || {};
+    if (p.hireDate) {
+      hireInput.value = p.hireDate;
+      const { start, end } = computeCycle(p.hireDate);
+      cycleStart.value = start;
+      cycleEnd.value   = end;
+      totalEnt.value   = getEntitlement(new Date(p.hireDate), new Date(end));
+      totalEnt.readOnly = true;
+      p.cycleStart = start;
+      p.cycleEnd   = end;
+      saveSpecialParams();
+    } else {
+      hireInput.value = '';
+      cycleStart.value = '';
+      cycleEnd.value   = '';
+      totalEnt.value   = '';
+    }
   }
-}
 
-
+  // 建列表
   function loadEmployees() {
     return JSON.parse(localStorage.getItem('employees') || '[]');
   }
   function loadRemoved() {
-    return JSON.parse(localStorage.getItem('removedEmployees') || '[]')
-                 .map(r => r.name);
+    return JSON.parse(localStorage.getItem('removedEmployees') || '[]').map(r=>r.name);
   }
-
   let selectedEmp = '';
   function buildEmployeeList() {
     const emps    = loadEmployees();
     const removed = loadRemoved();
-    const list    = emps.filter(e => !removed.includes(e));
+    const list    = emps.filter(e=>!removed.includes(e));
     empUl.innerHTML = '';
-    if (!list.includes(selectedEmp)) selectedEmp = list[0] || '';
+    if (!list.includes(selectedEmp)) selectedEmp = list[0]||'';
     list.forEach(emp => {
       const li = document.createElement('li');
       li.textContent = emp;
       if (emp === selectedEmp) li.classList.add('active');
       li.addEventListener('click', () => {
         selectedEmp = emp;
-        empUl.querySelectorAll('li').forEach(x => x.classList.remove('active'));
+        empUl.querySelectorAll('li').forEach(x=>x.classList.remove('active'));
         li.classList.add('active');
         loadEmpParams(emp);
       });
@@ -184,21 +174,21 @@ function loadEmpParams(emp) {
     });
     if (selectedEmp) loadEmpParams(selectedEmp);
   }
-
   buildEmployeeList();
   window.addEventListener('storage', e => {
-    if (e.key === 'employees' || e.key === 'removedEmployees') buildEmployeeList();
+    if (e.key==='employees'||e.key==='removedEmployees') buildEmployeeList();
   });
   window.addEventListener('focus', buildEmployeeList);
 
+  // 入職日更動即時計算週期
   hireInput.addEventListener('change', () => {
-    if (!selectedEmp || !hireInput.value) return;
+    if (!selectedEmp||!hireInput.value) return;
     const { start, end } = computeCycle(hireInput.value);
     cycleStart.value = start;
     cycleEnd.value   = end;
     totalEnt.value   = getEntitlement(new Date(hireInput.value), new Date(end));
     totalEnt.readOnly = true;
-    specialParams[selectedEmp] = specialParams[selectedEmp] || {};
+    specialParams[selectedEmp] = specialParams[selectedEmp]||{};
     Object.assign(specialParams[selectedEmp], {
       hireDate: hireInput.value,
       cycleStart: start,
@@ -207,63 +197,63 @@ function loadEmpParams(emp) {
     saveSpecialParams();
   });
 
+  // 提交計算
   document.getElementById('specialForm').addEventListener('submit', e => {
     e.preventDefault();
     if (!selectedEmp) return alert('請先從左側選擇員工');
-    const scheduleData = JSON.parse(localStorage.getItem('scheduleData') || '{}');
-    const startDate = new Date(cycleStart.value);
-    startDate.setHours(0,0,0,0);          // 当天 00:00:00.000
-    const endDate   = new Date(cycleEnd.value);
-    endDate.setHours(23,59,59,999);      // 当天 23:59:59.999
-    const total     = parseFloat(totalEnt.value) || 0;
-    if (endDate < startDate) return alert('週期結束日不可早於起始日');
+    const scheduleData = JSON.parse(localStorage.getItem('scheduleData')||'{}');
+    // 包含首尾整天
+    const startDate = new Date(cycleStart.value); startDate.setHours(0,0,0,0);
+    const endDate   = new Date(cycleEnd.value);   endDate.setHours(23,59,59,999);
+    const total     = parseFloat(totalEnt.value)||0;
+    if (endDate<startDate) return alert('週期結束日不可早於起始日');
 
-    let usedDays = 0, usedHours = 0;
-    const details = [];
-    Object.entries(scheduleData).forEach(([key, code]) => {
+    let usedDays=0, usedHours=0;
+    const details=[];
+
+    Object.entries(scheduleData).forEach(([key,code])=>{
       const parts = key.split('-');
-      const ky   = +parts[0], km = +parts[1], kd = +parts[parts.length-1];
-      km   = +parts[1],
-      kd   = +parts[parts.length - 1];
-      const kEmp = parts.slice(2, parts.length-1).join('-');
-      if (kEmp !== selectedEmp) return;
-      const dt = new Date(ky, km - 1, kd);
-      if (dt < startDate || dt > endDate) return;
-      if (code === '特') {
+      const ky = Number(parts[0]),
+            km = Number(parts[1]),
+            kd = Number(parts[parts.length-1]);
+      const kEmp = parts.slice(2,parts.length-1).join('-');
+      if (kEmp!==selectedEmp) return;
+      const dt = new Date(ky,km-1,kd);
+      if (dt<startDate||dt>endDate) return;
+
+      if (code==='特') {
         usedDays++;
         details.push(`${dt.toLocaleDateString()} — 全日`);
       } else {
-        const m = code.match(/^特(\d+)H$/);
+        const m=code.match(/^特(\d+)H$/);
         if (m) {
-          const h = +m[1];
-          usedHours += h;
+          const h=Number(m[1]);
+          usedHours+=h;
           details.push(`${dt.toLocaleDateString()} — ${h} 小時`);
         }
       }
     });
 
-    usedDays += Math.floor(usedHours / 8);
-    const remH      = usedHours % 8;
-    const usedTotal = usedDays + remH / 8;
+    usedDays += Math.floor(usedHours/8);
+    const remH      = usedHours%8;
+    const usedTotal = usedDays + remH/8;
     const remain    = total - usedTotal;
     const remWhole  = Math.floor(remain);
-    const remHour   = Math.round((remain - remWhole) * 8);
+    const remHour   = Math.round((remain-remWhole)*8);
 
     let html =
-      `<p>員工：${selectedEmp}<br>` +
-      `週期：${startDate.toLocaleDateString()} ～ ${endDate.toLocaleDateString()}<br>` +
-      `總額度：${total.toFixed(3)} 天<br>` +
-      `已用：${usedDays} 天 ${remH} 小時（${usedTotal.toFixed(3)} 天）<br>` +
+      `<p>員工：${selectedEmp}<br>`+
+      `週期：${startDate.toLocaleDateString()} ～ ${endDate.toLocaleDateString()}<br>`+
+      `總額度：${total.toFixed(3)} 天<br>`+
+      `已用：${usedDays} 天 ${remH} 小時（${usedTotal.toFixed(3)} 天）<br>`+
       `剩餘：${remWhole} 天 ${remHour} 小時（${remain.toFixed(3)} 天）</p>`;
-
     if (details.length) {
-      html += `<h3>特休明細</h3><ul>`;
-      details.forEach(item => html += `<li>${item}</li>`);
-      html += `</ul>`;
+      html+=`<h3>特休明細</h3><ul>`;
+      details.forEach(d=> html+=`<li>${d}</li>`);
+      html+=`</ul>`;
     } else {
-      html += `<p>本週期內無特休紀錄</p>`;
+      html+=`<p>本週期內無特休紀錄</p>`;
     }
-
     resultDiv.innerHTML = html;
   });
 });
