@@ -212,7 +212,9 @@ function loadEmpParams(emp) {
     if (!selectedEmp) return alert('請先從左側選擇員工');
     const scheduleData = JSON.parse(localStorage.getItem('scheduleData') || '{}');
     const startDate = new Date(cycleStart.value);
+    startDate.setHours(0,0,0,0);          // 当天 00:00:00.000
     const endDate   = new Date(cycleEnd.value);
+    endDate.setHours(23,59,59,999);      // 当天 23:59:59.999
     const total     = parseFloat(totalEnt.value) || 0;
     if (endDate < startDate) return alert('週期結束日不可早於起始日');
 
@@ -221,6 +223,8 @@ function loadEmpParams(emp) {
     Object.entries(scheduleData).forEach(([key, code]) => {
       const parts = key.split('-');
       const ky   = +parts[0], km = +parts[1], kd = +parts[parts.length-1];
+      km   = +parts[1],
+      kd   = +parts[parts.length - 1];
       const kEmp = parts.slice(2, parts.length-1).join('-');
       if (kEmp !== selectedEmp) return;
       const dt = new Date(ky, km - 1, kd);
