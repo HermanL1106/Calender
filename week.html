@@ -81,23 +81,26 @@
     let currentUID = null;
 
     signInAnonymously(auth).catch(err => console.error("Firebase login error:", err));
+let savedData = {};
+onAuthStateChanged(auth, async user => {
+  if (user) {
+    currentUID = user.uid;
+    console.log("登入成功 UID:", currentUID);
 
-    onAuthStateChanged(auth, async user => {
-      if (user) {
-        currentUID = user.uid;
-        console.log("登入成功 UID:", currentUID);
+    const ref = doc(db, "schedules", currentUID);
+    const snap = await getDoc(ref);
 
-        const ref = doc(db, "schedules", currentUID);
-        const snap = await getDoc(ref);
-       if (snap.exists()) {
-  savedData = snap.data();
-  localStorage.setItem('scheduleData', JSON.stringify(savedData));
-} else {
-  savedData = {};
-}
-renderSchedule(); // ⬅️ 替代 reload
-      }
-    });
+    if (snap.exists()) {
+      savedData = snap.data();  // ✅ 這裡能正確賦值
+      localStorage.setItem('scheduleData', JSON.stringify(savedData));
+    } else {
+      savedData = {};  // ✅ 若無資料，給空物件
+    }
+
+    renderSchedule(); // ✅ 初始化畫面
+  }
+});
+
 
     window.saveToFirebase = async function(data) {
       if (!currentUID) return;
