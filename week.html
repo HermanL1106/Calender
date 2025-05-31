@@ -24,20 +24,12 @@
   </style>
 </head>
 <body>
-  <div id="quickLinks">
-    <button onclick="location.href='https://hermanl1106.github.io/Calender/'">班表</button>
-    <button onclick="location.href='https://hermanl1106.github.io/Calender/special.html'">特休查詢</button>
-    <button onclick="location.href='https://hermanl1106.github.io/Calender/check.html'">勤假查詢</button>
-    <button onclick="location.href='https://hermanl1106.github.io/Calender/week.html'">早晚班表</button>
-  </div>
-
-  <h1>早晚班表</h1>
+  <h1>兩週班表排程（共用版本）</h1>
   <div id="schedule"></div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDRgKCsoHWBc1flzJY9ZrUtSYGpCWdoLjw",
@@ -51,8 +43,8 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    const auth = getAuth(app);
-    let currentUID = null;
+    const docRef = doc(db, "schedules", "shared");
+
     let savedData = {};
     let allBoxes = {};
 
@@ -190,25 +182,15 @@
       });
     }
 
-    window.saveToFirebase = async function(data) {
-      if (!currentUID) return;
-      const ref = doc(db, "schedules", currentUID);
-      await setDoc(ref, data);
-      console.log("✅ 已同步 Firebase");
-    };
+    async function saveToFirebase(data) {
+      await setDoc(docRef, data);
+      console.log("✅ 資料已儲存至 Firebase");
+    }
 
-    signInAnonymously(auth).catch(err => console.error("Firebase login error:", err));
-
-    onAuthStateChanged(auth, async user => {
-      if (user) {
-        currentUID = user.uid;
-        console.log("登入成功 UID:", currentUID);
-        const ref = doc(db, "schedules", currentUID);
-        const snap = await getDoc(ref);
-        savedData = snap.exists() ? snap.data() : {};
-        renderSchedule();
-      }
-    });
+    // 啟動載入資料
+    const snap = await getDoc(docRef);
+    savedData = snap.exists() ? snap.data() : {};
+    renderSchedule();
   </script>
 </body>
 </html>
