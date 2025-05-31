@@ -51,12 +51,6 @@
   </style>
 </head>
 <body>
-<div id="quickLinks">
-  <button onclick="location.href='https://hermanl1106.github.io/Calender/'">班表</button>
-  <button onclick="location.href='https://hermanl1106.github.io/Calender/special.html'">特休查詢</button>
-  <button onclick="location.href='https://hermanl1106.github.io/Calender/check.html'">勤假查詢</button>
-<button onclick="location.href='https://hermanl1106.github.io/Calender/week.html'">早晚班表</button>
-</div>
   <h1>兩周班表排程</h1>
   <div id="schedule"></div>
 
@@ -64,6 +58,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDRgKCsoHWBc1flzJY9ZrUtSYGpCWdoLjw",
@@ -71,11 +66,12 @@
       projectId: "wutan-calender",
       storageBucket: "wutan-calender.firebasestorage.app",
       messagingSenderId: "716247230665",
-      appId: "1:716247230665:web:9baed0888ae66be4988518",
-      measurementId: "G-LKJ92DKZWY"
+      appId: "1:716247230665:web:b2f90598132577f4988518",
+      measurementId: "G-4TPTLJN3E3"
     };
 
     const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
     const db = getFirestore(app);
     const auth = getAuth(app);
     let currentUID = null;
@@ -85,8 +81,6 @@
     onAuthStateChanged(auth, async user => {
       if (user) {
         currentUID = user.uid;
-        console.log("登入成功 UID:", currentUID);
-
         const ref = doc(db, "schedules", currentUID);
         const snap = await getDoc(ref);
         if (snap.exists()) {
@@ -101,7 +95,7 @@
       if (!currentUID) return;
       const ref = doc(db, "schedules", currentUID);
       await setDoc(ref, data);
-      console.log("✅ 已同步 Firebase");
+      console.log("✅ 已同步至 Firebase (schedules/" + currentUID + ")");
     }
 
     const employees = ['盆', '綠', '勳', '洪', '科', '翔', '承'];
