@@ -199,6 +199,41 @@ onAuthStateChanged(auth, async user => {
           popup.appendChild(label);
         });
 
+        function renderSchedule() {
+  const scheduleContainer = document.getElementById('schedule');
+  scheduleContainer.innerHTML = '';
+  const allBoxes = {};
+
+  weeks.forEach(week => {
+    const table = document.createElement('table');
+    const caption = document.createElement('h2');
+    caption.textContent = week.label;
+    scheduleContainer.appendChild(caption);
+
+    const headerRow = document.createElement('tr');
+    headerRow.innerHTML = '<th>班別</th>' + week.dates.map(d => `<th>${d.dateStr}</th>`).join('');
+    table.appendChild(headerRow);
+
+    shiftTimes.forEach((shift, shiftIndex) => {
+      const row = document.createElement('tr');
+      row.innerHTML = `<td class="shift-time">${shift.name}<br>${shift.time}</td>`;
+      week.dates.forEach(d => {
+        const td = document.createElement('td');
+        if (shift.hideWeekend && (d.weekday === 0 || d.weekday === 6)) {
+          td.style.backgroundColor = '#eee';
+          td.textContent = '—';
+        } else {
+          td.appendChild(createSelectionBox(d.dateKey, shiftIndex, d.weekday, shift.max));
+        }
+        row.appendChild(td);
+      });
+      table.appendChild(row);
+    });
+
+    scheduleContainer.appendChild(table);
+  });
+}
+
         document.body.appendChild(popup);
 
         function closePopup(ev) {
