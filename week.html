@@ -64,7 +64,6 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDRgKCsoHWBc1flzJY9ZrUtSYGpCWdoLjw",
@@ -72,32 +71,29 @@
       projectId: "wutan-calender",
       storageBucket: "wutan-calender.firebasestorage.app",
       messagingSenderId: "716247230665",
-      appId: "1:716247230665:web:b2f90598132577f4988518",
-      measurementId: "G-4TPTLJN3E3"
+      appId: "1:716247230665:web:9baed0888ae66be4988518",
+      measurementId: "G-LKJ92DKZWY"
     };
 
     const app = initializeApp(firebaseConfig);
-    const analytics = getAnalytics(app);
     const db = getFirestore(app);
     const auth = getAuth(app);
     let currentUID = null;
-    let savedData = {};
-    let allBoxes = {};
 
     signInAnonymously(auth).catch(err => console.error("Firebase login error:", err));
 
     onAuthStateChanged(auth, async user => {
       if (user) {
         currentUID = user.uid;
+        console.log("登入成功 UID:", currentUID);
+
         const ref = doc(db, "schedules", currentUID);
         const snap = await getDoc(ref);
         if (snap.exists()) {
-          savedData = snap.data();
-          localStorage.setItem('scheduleData', JSON.stringify(savedData));
-        } else {
-          savedData = {};
+          const remoteData = snap.data();
+          localStorage.setItem('scheduleData', JSON.stringify(remoteData));
+          location.reload();
         }
-        renderSchedule();
       }
     });
 
@@ -105,7 +101,7 @@
       if (!currentUID) return;
       const ref = doc(db, "schedules", currentUID);
       await setDoc(ref, data);
-      console.log("✅ 已同步至 Firebase (schedules/" + currentUID + ")");
+      console.log("✅ 已同步 Firebase");
     }
 
     const employees = ['盆', '綠', '勳', '洪', '科', '翔', '承'];
@@ -134,44 +130,14 @@
       return result;
     }
 
-    function renderSchedule() {
-      const scheduleContainer = document.getElementById('schedule');
-      scheduleContainer.innerHTML = '';
-      allBoxes = {};
-      const weeks = [
-        { label: '本週', dates: getWeekRange(0) },
-        { label: '下週', dates: getWeekRange(1) },
-      ];
+    const weeks = [
+      { label: '本週', dates: getWeekRange(0) },
+      { label: '下週', dates: getWeekRange(1) },
+    ];
 
-      weeks.forEach(week => {
-        const table = document.createElement('table');
-        const caption = document.createElement('h2');
-        caption.textContent = week.label;
-        scheduleContainer.appendChild(caption);
-
-        const headerRow = document.createElement('tr');
-        headerRow.innerHTML = '<th>班別</th>' + week.dates.map(d => `<th>${d.dateStr}</th>`).join('');
-        table.appendChild(headerRow);
-
-        shiftTimes.forEach((shift, shiftIndex) => {
-          const row = document.createElement('tr');
-          row.innerHTML = `<td class="shift-time">${shift.name}<br>${shift.time}</td>`;
-          week.dates.forEach(d => {
-            const td = document.createElement('td');
-            if (shift.hideWeekend && (d.weekday === 0 || d.weekday === 6)) {
-              td.style.backgroundColor = '#eee';
-              td.textContent = '—';
-            } else {
-              td.appendChild(createSelectionBox(d.dateKey, shiftIndex, d.weekday, shift.max));
-            }
-            row.appendChild(td);
-          });
-          table.appendChild(row);
-        });
-
-        scheduleContainer.appendChild(table);
-      });
-    }
+    const scheduleContainer = document.getElementById('schedule');
+    const savedData = JSON.parse(localStorage.getItem('scheduleData') || '{}');
+    const allBoxes = {};
 
     function createSelectionBox(dateKey, shiftIndex, weekday, max) {
       const box = document.createElement('div');
@@ -242,6 +208,35 @@
 
       return box;
     }
+
+    weeks.forEach(week => {
+      const table = document.createElement('table');
+      const caption = document.createElement('h2');
+      caption.textContent = week.label;
+      scheduleContainer.appendChild(caption);
+
+      const headerRow = document.createElement('tr');
+      headerRow.innerHTML = '<th>班別</th>' + week.dates.map(d => `<th>${d.dateStr}</th>`).join('');
+      table.appendChild(headerRow);
+
+      shiftTimes.forEach((shift, shiftIndex) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td class="shift-time">${shift.name}<br>${shift.time}</td>`;
+        week.dates.forEach(d => {
+          const td = document.createElement('td');
+          if (shift.hideWeekend && (d.weekday === 0 || d.weekday === 6)) {
+            td.style.backgroundColor = '#eee';
+            td.textContent = '—';
+          } else {
+            td.appendChild(createSelectionBox(d.dateKey, shiftIndex, d.weekday, shift.max));
+          }
+          row.appendChild(td);
+        });
+        table.appendChild(row);
+      });
+
+      scheduleContainer.appendChild(table);
+    });
   </script>
 </body>
 </html>
