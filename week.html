@@ -55,198 +55,167 @@
   <button onclick="location.href='https://hermanl1106.github.io/Calender/'">班表</button>
   <button onclick="location.href='https://hermanl1106.github.io/Calender/special.html'">特休查詢</button>
   <button onclick="location.href='https://hermanl1106.github.io/Calender/check.html'">勤假查詢</button>
-<button onclick="location.href='https://hermanl1106.github.io/Calender/week.html'">早晚班表</button>
+  <button onclick="location.href='https://hermanl1106.github.io/Calender/week.html'">早晚班表</button>
 </div>
-  <h1>早晚班表</h1>
-  <div id="schedule"></div>
+<h1>早晚班表</h1>
+<div id="schedule"></div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyDRgKCsoHWBc1flzJY9ZrUtSYGpCWdoLjw",
-      authDomain: "wutan-calender.firebaseapp.com",
-      projectId: "wutan-calender",
-      storageBucket: "wutan-calender.firebasestorage.app",
-      messagingSenderId: "716247230665",
-      appId: "1:716247230665:web:9baed0888ae66be4988518",
-      measurementId: "G-LKJ92DKZWY"
-    };
+  const firebaseConfig = {
+    apiKey: "AIzaSyDRgKCsoHWBc1flzJY9ZrUtSYGpCWdoLjw",
+    authDomain: "wutan-calender.firebaseapp.com",
+    projectId: "wutan-calender",
+    storageBucket: "wutan-calender.firebasestorage.app",
+    messagingSenderId: "716247230665",
+    appId: "1:716247230665:web:9baed0888ae66be4988518",
+    measurementId: "G-LKJ92DKZWY"
+  };
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const auth = getAuth(app);
-    let currentUID = null;
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+  let currentUID = null;
+  let savedData = {};
+  let allBoxes = {}; // ✅ 全域定義，避免重複定義問題
 
-    signInAnonymously(auth).catch(err => console.error("Firebase login error:", err));
-let savedData = {};
-onAuthStateChanged(auth, async user => {
-  if (user) {
-    currentUID = user.uid;
-    console.log("登入成功 UID:", currentUID);
+  signInAnonymously(auth).catch(err => console.error("Firebase login error:", err));
 
-    const ref = doc(db, "schedules", currentUID);
-    const snap = await getDoc(ref);
+  onAuthStateChanged(auth, async user => {
+    if (user) {
+      currentUID = user.uid;
+      console.log("登入成功 UID:", currentUID);
 
-    if (snap.exists()) {
-      savedData = snap.data();  // ✅ 這裡能正確賦值
-      localStorage.setItem('scheduleData', JSON.stringify(savedData));
-    } else {
-      savedData = {};  // ✅ 若無資料，給空物件
-    }
-
-    renderSchedule(); // ✅ 初始化畫面
-  }
-});
-
-
-    window.saveToFirebase = async function(data) {
-      if (!currentUID) return;
       const ref = doc(db, "schedules", currentUID);
-      await setDoc(ref, data);
-      console.log("✅ 已同步 Firebase");
-    }
+      const snap = await getDoc(ref);
 
-    const employees = ['盆', '綠', '勳', '洪', '科', '翔', '承'];
-    const shiftTimes = [
-      { name: '第一班', time: '9:00~18:00', max: 2, hideWeekend: true },
-      { name: '第二班', time: '10:00~19:00', max: 2, hideWeekend: true },
-      { name: '第三班', time: '12:00~21:00', max: 7, hideWeekend: false },
-    ];
-    const weekDays = ['日','一','二','三','四','五','六'];
-
-    function getWeekRange(offsetWeeks = 0) {
-      const result = [];
-      const today = new Date();
-      const day = today.getDay();
-      const monday = new Date(today);
-      monday.setDate(today.getDate() - ((day + 6) % 7) + offsetWeeks * 7);
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(monday);
-        d.setDate(monday.getDate() + i);
-        result.push({
-          dateStr: `${d.getMonth() + 1}/${d.getDate()}（${weekDays[d.getDay()]}）`,
-          weekday: d.getDay(),
-          dateKey: `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
-        });
+      if (snap.exists()) {
+        savedData = snap.data();
+        localStorage.setItem('scheduleData', JSON.stringify(savedData));
+      } else {
+        savedData = {};
       }
-      return result;
+
+      renderSchedule();
     }
+  });
 
-    const weeks = [
-      { label: '本週', dates: getWeekRange(0) },
-      { label: '下週', dates: getWeekRange(1) },
-    ];
+  window.saveToFirebase = async function(data) {
+    if (!currentUID) return;
+    const ref = doc(db, "schedules", currentUID);
+    await setDoc(ref, data);
+    console.log("✅ 已同步 Firebase");
+  };
 
-    const scheduleContainer = document.getElementById('schedule');
-    const allBoxes = {};
+  const employees = ['盆', '綠', '勳', '洪', '科', '翔', '承'];
+  const shiftTimes = [
+    { name: '第一班', time: '9:00~18:00', max: 2, hideWeekend: true },
+    { name: '第二班', time: '10:00~19:00', max: 2, hideWeekend: true },
+    { name: '第三班', time: '12:00~21:00', max: 7, hideWeekend: false },
+  ];
+  const weekDays = ['日','一','二','三','四','五','六'];
 
-    function createSelectionBox(dateKey, shiftIndex, weekday, max) {
-      const box = document.createElement('div');
-      box.className = 'display-box';
-      const key = `${dateKey}-${shiftIndex}`;
-      const selected = savedData[key] || [];
-      box.textContent = selected.length ? selected.join('+') : '—';
-      allBoxes[key] = { box, dateKey, shiftIndex, selected };
+  function getWeekRange(offsetWeeks = 0) {
+    const result = [];
+    const today = new Date();
+    const day = today.getDay();
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - ((day + 6) % 7) + offsetWeeks * 7);
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      result.push({
+        dateStr: `${d.getMonth() + 1}/${d.getDate()}（${weekDays[d.getDay()]}）`,
+        weekday: d.getDay(),
+        dateKey: `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
+      });
+    }
+    return result;
+  }
 
-      box.addEventListener('click', e => {
-        const popup = document.createElement('div');
-        popup.className = 'popup';
-        popup.style.top = e.pageY + 'px';
-        popup.style.left = e.pageX + 'px';
+  const weeks = [
+    { label: '本週', dates: getWeekRange(0) },
+    { label: '下週', dates: getWeekRange(1) },
+  ];
 
-        employees.forEach(emp => {
-          const label = document.createElement('label');
-          const checkbox = document.createElement('input');
-          checkbox.type = 'checkbox';
-          checkbox.value = emp;
-          checkbox.checked = selected.includes(emp);
+  const scheduleContainer = document.getElementById('schedule');
 
-          checkbox.addEventListener('change', () => {
-            const checked = popup.querySelectorAll('input:checked');
-            const selectedNames = Array.from(checked).map(cb => cb.value);
+  function createSelectionBox(dateKey, shiftIndex, weekday, max) {
+    const box = document.createElement('div');
+    box.className = 'display-box';
+    const key = `${dateKey}-${shiftIndex}`;
+    const selected = savedData[key] || [];
+    box.textContent = selected.length ? selected.join('+') : '—';
+    allBoxes[key] = { box, dateKey, shiftIndex, selected };
 
-            const allSelectedToday = Object.entries(allBoxes)
-              .filter(([k, v]) => v.dateKey === dateKey && k !== key)
-              .flatMap(([_, v]) => v.selected);
+    box.addEventListener('click', e => {
+      const popup = document.createElement('div');
+      popup.className = 'popup';
+      popup.style.top = e.pageY + 'px';
+      popup.style.left = e.pageX + 'px';
 
-            const duplicate = selectedNames.find(name => allSelectedToday.includes(name));
-            if (duplicate) {
-              checkbox.checked = false;
-              alert(`同一天不能安排 ${duplicate} 在不同班次`);
-              return;
-            }
+      employees.forEach(emp => {
+        const label = document.createElement('label');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = emp;
+        checkbox.checked = selected.includes(emp);
 
-            if (selectedNames.length > max) {
-              checkbox.checked = false;
-              alert(`最多只能選擇 ${max} 人`);
-              return;
-            }
+        checkbox.addEventListener('change', () => {
+          const checked = popup.querySelectorAll('input:checked');
+          const selectedNames = Array.from(checked).map(cb => cb.value);
 
-            selected.length = 0;
-            selected.push(...selectedNames);
-            box.textContent = selected.length ? selected.join('+') : '—';
-            savedData[key] = selected;
+          const allSelectedToday = Object.entries(allBoxes)
+            .filter(([k, v]) => v.dateKey === dateKey && k !== key)
+            .flatMap(([_, v]) => v.selected);
 
-            localStorage.setItem('scheduleData', JSON.stringify(savedData));
-            if (typeof saveToFirebase === 'function') saveToFirebase(savedData);
-          });
+          const duplicate = selectedNames.find(name => allSelectedToday.includes(name));
+          if (duplicate) {
+            checkbox.checked = false;
+            alert(`同一天不能安排 ${duplicate} 在不同班次`);
+            return;
+          }
 
-          label.appendChild(checkbox);
-          label.append(' ' + emp);
-          popup.appendChild(label);
+          if (selectedNames.length > max) {
+            checkbox.checked = false;
+            alert(`最多只能選擇 ${max} 人`);
+            return;
+          }
+
+          selected.length = 0;
+          selected.push(...selectedNames);
+          box.textContent = selected.length ? selected.join('+') : '—';
+          savedData[key] = selected;
+
+          localStorage.setItem('scheduleData', JSON.stringify(savedData));
+          if (typeof saveToFirebase === 'function') saveToFirebase(savedData);
         });
 
-        function renderSchedule() {
-  const scheduleContainer = document.getElementById('schedule');
-  scheduleContainer.innerHTML = '';
-  const allBoxes = {};
-
-  weeks.forEach(week => {
-    const table = document.createElement('table');
-    const caption = document.createElement('h2');
-    caption.textContent = week.label;
-    scheduleContainer.appendChild(caption);
-
-    const headerRow = document.createElement('tr');
-    headerRow.innerHTML = '<th>班別</th>' + week.dates.map(d => `<th>${d.dateStr}</th>`).join('');
-    table.appendChild(headerRow);
-
-    shiftTimes.forEach((shift, shiftIndex) => {
-      const row = document.createElement('tr');
-      row.innerHTML = `<td class="shift-time">${shift.name}<br>${shift.time}</td>`;
-      week.dates.forEach(d => {
-        const td = document.createElement('td');
-        if (shift.hideWeekend && (d.weekday === 0 || d.weekday === 6)) {
-          td.style.backgroundColor = '#eee';
-          td.textContent = '—';
-        } else {
-          td.appendChild(createSelectionBox(d.dateKey, shiftIndex, d.weekday, shift.max));
-        }
-        row.appendChild(td);
+        label.appendChild(checkbox);
+        label.append(' ' + emp);
+        popup.appendChild(label);
       });
-      table.appendChild(row);
+
+      document.body.appendChild(popup);
+
+      function closePopup(ev) {
+        if (!popup.contains(ev.target) && ev.target !== box) {
+          popup.remove();
+          document.removeEventListener('click', closePopup);
+        }
+      }
+      setTimeout(() => document.addEventListener('click', closePopup), 10);
     });
 
-    scheduleContainer.appendChild(table);
-  });
-}
+    return box;
+  }
 
-        document.body.appendChild(popup);
-
-        function closePopup(ev) {
-          if (!popup.contains(ev.target) && ev.target !== box) {
-            popup.remove();
-            document.removeEventListener('click', closePopup);
-          }
-        }
-        setTimeout(() => document.addEventListener('click', closePopup), 10);
-      });
-
-      return box;
-    }
+  function renderSchedule() {
+    scheduleContainer.innerHTML = '';
+    allBoxes = {}; // ✅ 清空而非重新定義
 
     weeks.forEach(week => {
       const table = document.createElement('table');
@@ -276,6 +245,7 @@ onAuthStateChanged(auth, async user => {
 
       scheduleContainer.appendChild(table);
     });
-  </script>
+  }
+</script>
 </body>
 </html>
