@@ -89,11 +89,13 @@
 
         const ref = doc(db, "schedules", currentUID);
         const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const remoteData = snap.data();
-          localStorage.setItem('scheduleData', JSON.stringify(remoteData));
-          location.reload();
-        }
+       if (snap.exists()) {
+  savedData = snap.data();
+  localStorage.setItem('scheduleData', JSON.stringify(savedData));
+} else {
+  savedData = {};
+}
+renderSchedule(); // ⬅️ 替代 reload
       }
     });
 
