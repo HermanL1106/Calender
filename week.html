@@ -141,7 +141,6 @@ onAuthStateChanged(auth, async user => {
     ];
 
     const scheduleContainer = document.getElementById('schedule');
-    const savedData = JSON.parse(localStorage.getItem('scheduleData') || '{}');
     const allBoxes = {};
 
     function createSelectionBox(dateKey, shiftIndex, weekday, max) {
