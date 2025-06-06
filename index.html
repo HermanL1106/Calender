@@ -212,6 +212,7 @@ async function loadSchedule() {
   } catch (e) {
     scheduleData = { error: "讀取資料失敗：" + e.message };
   }
+	generateTable(); // ✅ 改這裡，保證資料讀取完後再繪製表格
 }
 
 // 儲存至 Firebase
