@@ -34,193 +34,199 @@
   <div id="schedule"></div>
 
   <script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+// 🔧 Firebase 設定
+const firebaseConfig = {
+  apiKey: "AIzaSyDRgKCsoHWBc1flzJY9ZrUtSYGpCWdoLjw",
+  authDomain: "wutan-calender.firebaseapp.com",
+  projectId: "wutan-calender",
+  storageBucket: "wutan-calender.firebasestorage.app",
+  messagingSenderId: "716247230665",
+  appId: "1:716247230665:web:9baed0888ae66be4988518",
+  measurementId: "G-LKJ92DKZWY"
+};
 
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyDRgKCsoHWBc1flzJY9ZrUtSYGpCWdoLjw",
-      authDomain: "wutan-calender.firebaseapp.com",
-      projectId: "wutan-calender",
-      storageBucket: "wutan-calender.firebasestorage.app",
-      messagingSenderId: "716247230665",
-      appId: "1:716247230665:web:9baed0888ae66be4988518",
-      measurementId: "G-LKJ92DKZWY"
-    };
-
-    const app = initializeApp(firebaseConfig);
-	const auth = getAuth(app);
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const docRef = doc(db, "schedules", "shared");
+const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 
-// 自動處理登入狀態
+// 🟡 控制是否登入，決定是否允許寫入
+let canSave = false;
+
 onAuthStateChanged(auth, (user) => {
   if (user) {
-    console.log("登入使用者：", user.displayName);
-    startApp(); // ✅ 登入後再啟動主程式
+    console.log("✅ 已登入", user.displayName);
+    canSave = true;
   } else {
     signInWithPopup(auth, provider)
-      .then((result) => {
-        console.log("登入成功：", result.user.displayName);
-        startApp(); // ✅ 登入後再啟動主程式
+      .then(result => {
+        console.log("✅ 登入成功", result.user.displayName);
+        canSave = true;
       })
-      .catch((error) => {
-        console.error("登入失敗：", error);
-        alert("登入失敗，請重新整理頁面");
+      .catch(err => {
+        console.warn("❌ 登入失敗或取消，將以只讀模式繼續");
       });
   }
 });
 
-    const db = getFirestore(app);
-    const docRef = doc(db, "schedules", "shared");
+// 📦 資料結構
+let savedData = {};
+let allBoxes = {};
+const employees = ['盆', '綠', '勳', '洪', '科', '翔', '承'];
+const shiftTimes = [
+  { name: '第一班', time: '9:00~18:00', max: 2, hideWeekend: true },
+  { name: '第二班', time: '10:00~19:00', max: 2, hideWeekend: true },
+  { name: '第三班', time: '12:00~21:00', max: 7, hideWeekend: false },
+];
+const weekDays = ['日','一','二','三','四','五','六'];
 
-    let savedData = {};
-    let allBoxes = {};
+// 📆 取得一週日期
+function getWeekRange(offsetWeeks = 0) {
+  const result = [];
+  const today = new Date();
+  const day = today.getDay();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - ((day + 6) % 7) + offsetWeeks * 7);
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    result.push({
+      dateStr: `${d.getMonth() + 1}/${d.getDate()}（${weekDays[d.getDay()]}）`,
+      weekday: d.getDay(),
+      dateKey: `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
+    });
+  }
+  return result;
+}
+const weeks = [
+  { label: '本週', dates: getWeekRange(0) },
+  { label: '下週', dates: getWeekRange(1) },
+];
 
-    const employees = ['盆', '綠', '勳', '洪', '科', '翔', '承'];
-    const shiftTimes = [
-      { name: '第一班', time: '9:00~18:00', max: 2, hideWeekend: true },
-      { name: '第二班', time: '10:00~19:00', max: 2, hideWeekend: true },
-      { name: '第三班', time: '12:00~21:00', max: 7, hideWeekend: false },
-    ];
-    const weekDays = ['日','一','二','三','四','五','六'];
+// ✅ 載入資料後立即渲染畫面
+const snap = await getDoc(docRef);
+savedData = snap.exists() ? snap.data() : {};
+renderSchedule();
 
-    function getWeekRange(offsetWeeks = 0) {
-      const result = [];
-      const today = new Date();
-      const day = today.getDay();
-      const monday = new Date(today);
-      monday.setDate(today.getDate() - ((day + 6) % 7) + offsetWeeks * 7);
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(monday);
-        d.setDate(monday.getDate() + i);
-        result.push({
-          dateStr: `${d.getMonth() + 1}/${d.getDate()}（${weekDays[d.getDay()]}）`,
-          weekday: d.getDay(),
-          dateKey: `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
-        });
-      }
-      return result;
-    }
+// 💾 儲存功能（需登入）
+async function saveToFirebase(data) {
+  if (!canSave) {
+    alert("請先登入後才能儲存排班資料");
+    return;
+  }
+  await setDoc(docRef, data);
+  console.log("✅ 資料已儲存至 Firebase");
+}
 
-    const weeks = [
-      { label: '本週', dates: getWeekRange(0) },
-      { label: '下週', dates: getWeekRange(1) },
-    ];
+// 📦 建立選擇方塊
+function createSelectionBox(dateKey, shiftIndex, weekday, max) {
+  const box = document.createElement('div');
+  box.className = 'display-box';
+  const key = `${dateKey}-${shiftIndex}`;
+  const selected = savedData[key] || [];
+  box.textContent = selected.length ? selected.join('+') : '—';
+  allBoxes[key] = { box, dateKey, shiftIndex, selected };
 
-    function createSelectionBox(dateKey, shiftIndex, weekday, max) {
-      const box = document.createElement('div');
-      box.className = 'display-box';
-      const key = `${dateKey}-${shiftIndex}`;
-      const selected = savedData[key] || [];
-      box.textContent = selected.length ? selected.join('+') : '—';
-      allBoxes[key] = { box, dateKey, shiftIndex, selected };
+  box.addEventListener('click', e => {
+    const popup = document.createElement('div');
+    popup.className = 'popup';
+    popup.style.top = e.pageY + 'px';
+    popup.style.left = e.pageX + 'px';
 
-      box.addEventListener('click', e => {
-        const popup = document.createElement('div');
-        popup.className = 'popup';
-        popup.style.top = e.pageY + 'px';
-        popup.style.left = e.pageX + 'px';
+    employees.forEach(emp => {
+      const label = document.createElement('label');
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = emp;
+      checkbox.checked = selected.includes(emp);
 
-        employees.forEach(emp => {
-          const label = document.createElement('label');
-          const checkbox = document.createElement('input');
-          checkbox.type = 'checkbox';
-          checkbox.value = emp;
-          checkbox.checked = selected.includes(emp);
+      checkbox.addEventListener('change', () => {
+        const checked = popup.querySelectorAll('input:checked');
+        const selectedNames = Array.from(checked).map(cb => cb.value);
 
-          checkbox.addEventListener('change', () => {
-            const checked = popup.querySelectorAll('input:checked');
-            const selectedNames = Array.from(checked).map(cb => cb.value);
+        const allSelectedToday = Object.entries(allBoxes)
+          .filter(([k, v]) => v.dateKey === dateKey && k !== key)
+          .flatMap(([_, v]) => v.selected);
 
-            const allSelectedToday = Object.entries(allBoxes)
-              .filter(([k, v]) => v.dateKey === dateKey && k !== key)
-              .flatMap(([_, v]) => v.selected);
-
-            const duplicate = selectedNames.find(name => allSelectedToday.includes(name));
-            if (duplicate) {
-              checkbox.checked = false;
-              alert(`同一天不能安排 ${duplicate} 在不同班次`);
-              return;
-            }
-
-            if (selectedNames.length > max) {
-              checkbox.checked = false;
-              alert(`最多只能選擇 ${max} 人`);
-              return;
-            }
-
-            selected.length = 0;
-            selected.push(...selectedNames);
-            box.textContent = selected.length ? selected.join('+') : '—';
-            savedData[key] = selected;
-            saveToFirebase(savedData);
-          });
-
-          label.appendChild(checkbox);
-          label.append(' ' + emp);
-          popup.appendChild(label);
-        });
-
-        document.body.appendChild(popup);
-
-        function closePopup(ev) {
-          if (!popup.contains(ev.target) && ev.target !== box) {
-            popup.remove();
-            document.removeEventListener('click', closePopup);
-          }
+        const duplicate = selectedNames.find(name => allSelectedToday.includes(name));
+        if (duplicate) {
+          checkbox.checked = false;
+          alert(`同一天不能安排 ${duplicate} 在不同班次`);
+          return;
         }
-        setTimeout(() => document.addEventListener('click', closePopup), 10);
+
+        if (selectedNames.length > max) {
+          checkbox.checked = false;
+          alert(`最多只能選擇 ${max} 人`);
+          return;
+        }
+
+        selected.length = 0;
+        selected.push(...selectedNames);
+        box.textContent = selected.length ? selected.join('+') : '—';
+        savedData[key] = selected;
+        saveToFirebase(savedData);
       });
 
-      return box;
+      label.appendChild(checkbox);
+      label.append(' ' + emp);
+      popup.appendChild(label);
+    });
+
+    document.body.appendChild(popup);
+
+    function closePopup(ev) {
+      if (!popup.contains(ev.target) && ev.target !== box) {
+        popup.remove();
+        document.removeEventListener('click', closePopup);
+      }
     }
+    setTimeout(() => document.addEventListener('click', closePopup), 10);
+  });
 
-    function renderSchedule() {
-      const scheduleContainer = document.getElementById('schedule');
-      scheduleContainer.innerHTML = '';
-      allBoxes = {};
+  return box;
+}
 
-      weeks.forEach(week => {
-        const table = document.createElement('table');
-        const caption = document.createElement('h2');
-        caption.textContent = week.label;
-        scheduleContainer.appendChild(caption);
+// 📋 產生畫面表格
+function renderSchedule() {
+  const scheduleContainer = document.getElementById('schedule');
+  scheduleContainer.innerHTML = '';
+  allBoxes = {};
 
-        const headerRow = document.createElement('tr');
-        headerRow.innerHTML = '<th>班別</th>' + week.dates.map(d => `<th>${d.dateStr}</th>`).join('');
-        table.appendChild(headerRow);
+  weeks.forEach(week => {
+    const table = document.createElement('table');
+    const caption = document.createElement('h2');
+    caption.textContent = week.label;
+    scheduleContainer.appendChild(caption);
 
-        shiftTimes.forEach((shift, shiftIndex) => {
-          const row = document.createElement('tr');
-          row.innerHTML = `<td class="shift-time">${shift.name}<br>${shift.time}</td>`;
-          week.dates.forEach(d => {
-            const td = document.createElement('td');
-            if (shift.hideWeekend && (d.weekday === 0 || d.weekday === 6)) {
-              td.style.backgroundColor = '#eee';
-              td.textContent = '—';
-            } else {
-              td.appendChild(createSelectionBox(d.dateKey, shiftIndex, d.weekday, shift.max));
-            }
-            row.appendChild(td);
-          });
-          table.appendChild(row);
-        });
+    const headerRow = document.createElement('tr');
+    headerRow.innerHTML = '<th>班別</th>' + week.dates.map(d => `<th>${d.dateStr}</th>`).join('');
+    table.appendChild(headerRow);
 
-        scheduleContainer.appendChild(table);
+    shiftTimes.forEach((shift, shiftIndex) => {
+      const row = document.createElement('tr');
+      row.innerHTML = `<td class="shift-time">${shift.name}<br>${shift.time}</td>`;
+      week.dates.forEach(d => {
+        const td = document.createElement('td');
+        if (shift.hideWeekend && (d.weekday === 0 || d.weekday === 6)) {
+          td.style.backgroundColor = '#eee';
+          td.textContent = '—';
+        } else {
+          td.appendChild(createSelectionBox(d.dateKey, shiftIndex, d.weekday, shift.max));
+        }
+        row.appendChild(td);
       });
-    }
+      table.appendChild(row);
+    });
 
-    async function saveToFirebase(data) {
-      await setDoc(docRef, data);
-      console.log("✅ 資料已儲存至 Firebase");
-    }
-
-    // 啟動載入資料
-    const snap = await getDoc(docRef);
-    savedData = snap.exists() ? snap.data() : {};
-    renderSchedule();
-  </script>
+    scheduleContainer.appendChild(table);
+  });
+}
+</script>
 </body>
 </html>
