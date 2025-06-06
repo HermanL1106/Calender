@@ -150,8 +150,7 @@ td.work             { background: #fff;    color: #000; }
   </table>
 
 
-    <!-- Firebase 與程式碼載入 -->
-  <script type="module">
+<script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -197,38 +196,20 @@ td.work             { background: #fff;    color: #000; }
         loginBtn.style.display = '';
         logoutBtn.style.display = 'none';
       }
-      renderSchedule();
+      generateTable(); // 保證每次登入狀態變更時都重新繪製表格
     });
 
-async function loadSchedule() {
-  try {
-    const snap = await getDoc(dataRef);
-    if (snap.exists()) {
-      scheduleData = snap.data();
-    } else {
-      scheduleData = { notes: "尚無資料" };
-    }
-  } catch (e) {
-    scheduleData = { error: "讀取資料失敗：" + e.message };
-  }
-      renderSchedule();
-    }
-
-    function renderSchedule() {
-      dataDiv.innerHTML = '';
-      const pre = document.createElement('pre');
-      pre.textContent = JSON.stringify(scheduleData, null, 2);
-      dataDiv.appendChild(pre);
-
-      if (currentUser) {
-        const btn = document.createElement('button');
-        btn.textContent = '修改資料並儲存';
-        btn.onclick = async () => {
-          scheduleData.updatedAt = new Date().toISOString();
-          await setDoc(dataRef, scheduleData);
-          alert('✅ 資料已儲存！');
-        };
-        dataDiv.appendChild(btn);
+    async function loadSchedule() {
+      try {
+        const snap = await getDoc(dataRef);
+        if (snap.exists()) {
+          scheduleData = snap.data();
+          localStorage.setItem('scheduleData', JSON.stringify(scheduleData));
+        } else {
+          scheduleData = { notes: "尚無資料" };
+        }
+      } catch (e) {
+        scheduleData = { error: "讀取資料失敗：" + e.message };
       }
     }
 
@@ -238,9 +219,47 @@ async function loadSchedule() {
       }
     }
 
+    function getCellKey(year, month, emp, day) {
+      const mm = String(month).padStart(2,'0');
+      const dd = String(day).padStart(2,'0');
+      return `${year}-${mm}-${emp}-${dd}`;
+    }
+
+    function generateTable() {
+      const yearInput = document.getElementById('yearInput');
+      const monthInput = document.getElementById('monthInput');
+      const year = parseInt(yearInput?.value || '2025', 10);
+      const month = parseInt(monthInput?.value || '3', 10);
+      const table = document.getElementById('scheduleTable');
+      if (!table) return;
+
+      table.innerHTML = '';
+      const daysInMonth = new Date(year, month, 0).getDate();
+
+      const header = document.createElement('tr');
+      header.innerHTML = `<th>員工</th>` +
+        Array.from({ length: daysInMonth }, (_, i) => `<th>${i + 1}</th>`).join('');
+      table.appendChild(header);
+
+      employees.forEach(emp => {
+        const tr = document.createElement('tr');
+        const tdName = document.createElement('td');
+        tdName.textContent = emp;
+        tr.appendChild(tdName);
+
+        for (let d = 1; d <= daysInMonth; d++) {
+          const td = document.createElement('td');
+          const key = getCellKey(year, month, emp, d);
+          const val = scheduleData[key] || '';
+          td.textContent = val;
+          tr.appendChild(td);
+        }
+        table.appendChild(tr);
+      });
+    }
+
     window.addEventListener('DOMContentLoaded', async () => {
       await loadSchedule();
-      initPalette();
       generateTable();
     });
   // —— helpers —— 
