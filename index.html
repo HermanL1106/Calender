@@ -117,19 +117,21 @@ td.work             { background: #fff;    color: #000; }
   </style>
 </head>
 <body>
-	<div style="margin-bottom:10px;">
-  <span id="authStatus">尚未登入</span>
-  <button id="loginBtn">Google 登入</button>
-  <button id="logoutBtn" style="display:none;">登出</button>
-</div>
-<div id="quickLinks">
-  <button onclick="location.href='https://hermanl1106.github.io/Calender/'">班表</button>
-  <button onclick="location.href='https://hermanl1106.github.io/Calender/special.html'">特休查詢</button>
-  <button onclick="location.href='https://hermanl1106.github.io/Calender/check.html'">勤假查詢</button>
-<button onclick="location.href='https://hermanl1106.github.io/Calender/week.html'">早晚班表</button>
-</div>
+ <div style="margin-bottom:10px;">
+    <span id="authStatus">尚未登入</span>
+    <button id="loginBtn">Google 登入</button>
+    <button id="logoutBtn" style="display:none;">登出</button>
+  </div>
+
+  <div id="quickLinks">
+    <button onclick="location.href='https://hermanl1106.github.io/Calender/'">班表</button>
+    <button onclick="location.href='https://hermanl1106.github.io/Calender/special.html'">特休查詢</button>
+    <button onclick="location.href='https://hermanl1106.github.io/Calender/check.html'">勤假查詢</button>
+    <button onclick="location.href='https://hermanl1106.github.io/Calender/week.html'">早晚班表</button>
+  </div>
 
   <h2 id="monthDisplay">2025/03</h2>
+	<div id="dataContainer"></div>
   <label>年份：<input type="number" id="yearInput" value="2025"></label>
   <label>月份：<input type="number" id="monthInput" value="3" min="1" max="12"></label>
   <button onclick="generateTable()">更新</button>
