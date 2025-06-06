@@ -117,6 +117,11 @@ td.work             { background: #fff;    color: #000; }
   </style>
 </head>
 <body>
+	<div style="margin-bottom:10px;">
+  <span id="authStatus">尚未登入</span>
+  <button id="loginBtn">Google 登入</button>
+  <button id="logoutBtn" style="display:none;">登出</button>
+</div>
 <div id="quickLinks">
   <button onclick="location.href='https://hermanl1106.github.io/Calender/'">班表</button>
   <button onclick="location.href='https://hermanl1106.github.io/Calender/special.html'">特休查詢</button>
@@ -145,58 +150,89 @@ td.work             { background: #fff;    color: #000; }
 
 
 <script type="module">
-  // —— Firebase 初始化 —— 
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+div id="authBar">
+    <span id="status">尚未登入</span>
+    <button id="loginBtn">Google 登入</button>
+    <button id="logoutBtn" style="display:none;">登出</button>
+  </div>
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyDRgKCsoHWBc1flzJY9ZrUtSYGpCWdoLjw",
-    authDomain: "wutan-calender.firebaseapp.com",
-    projectId: "wutan-calender",
-    storageBucket: "wutan-calender.firebasestorage.app",
-    messagingSenderId: "716247230665",
-    appId: "1:716247230665:web:9baed0888ae66be4988518",
-    measurementId: "G-LKJ92DKZWY"
-  };
-  const app = initializeApp(firebaseConfig);
-  const db  = getFirestore(app);
-  const masterDoc = doc(db, "calendarData", "master");
+  <h2>班表（僅登入可編輯）</h2>
+  <div id="dataContainer"></div>
 
-  // —— 本地 & 内存数据 —— 
-  let employees        = [];
-  let removedEmployees = [];
-  let scheduleData     = {};
-  let locked           = true;
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-  // —— 同步到 Firestore —— 
-  async function syncToFirebase() {
-    await setDoc(masterDoc, {
-      employees,
-      removedEmployees,
-      scheduleData
+    const firebaseConfig = {
+      apiKey: "AIzaSyDRgKCsoHWBc1flzJY9ZrUtSYGpCWdoLjw",
+      authDomain: "wutan-calender.firebaseapp.com",
+      projectId: "wutan-calender",
+      storageBucket: "wutan-calender.firebasestorage.app",
+      messagingSenderId: "716247230665",
+      appId: "1:716247230665:web:9baed0888ae66be4988518",
+      measurementId: "G-LKJ92DKZWY"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
+
+    let currentUser = null;
+    const dataRef = doc(db, "calendarData", "master");
+    let scheduleData = {};
+
+    const loginBtn = document.getElementById('loginBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const statusSpan = document.getElementById('status');
+    const dataDiv = document.getElementById('dataContainer');
+
+    loginBtn.onclick = () => signInWithPopup(auth, provider);
+    logoutBtn.onclick = () => signOut(auth);
+
+    onAuthStateChanged(auth, user => {
+      currentUser = user;
+      if (user) {
+        statusSpan.textContent = `已登入：${user.displayName || user.email}`;
+        loginBtn.style.display = 'none';
+        logoutBtn.style.display = '';
+      } else {
+        statusSpan.textContent = '尚未登入';
+        loginBtn.style.display = '';
+        logoutBtn.style.display = 'none';
+      }
     });
-  }
 
-  // —— 从 Firestore 读取（或回退到 localStorage） —— 
-  async function loadFromFirebase() {
-    const snap = await getDoc(masterDoc);
-    if (snap.exists()) {
-      const data = snap.data();
-      employees        = data.employees        || [];
-      removedEmployees = data.removedEmployees || [];
-      scheduleData     = data.scheduleData     || {};
-    } else {
-      // fallback to localStorage
-      employees        = JSON.parse(localStorage.getItem('employees')        || '[]');
-      removedEmployees = JSON.parse(localStorage.getItem('removedEmployees') || '[]');
-      scheduleData     = JSON.parse(localStorage.getItem('scheduleData')     || '{}');
-      await syncToFirebase();
+    async function loadSchedule() {
+      const snap = await getDoc(dataRef);
+      if (snap.exists()) {
+        scheduleData = snap.data();
+      } else {
+        scheduleData = { notes: "尚無資料" };
+      }
+      renderSchedule();
     }
-    // mirror to localStorage
-    localStorage.setItem('employees',        JSON.stringify(employees));
-    localStorage.setItem('removedEmployees', JSON.stringify(removedEmployees));
-    localStorage.setItem('scheduleData',     JSON.stringify(scheduleData));
-  }
+
+    function renderSchedule() {
+      dataDiv.innerHTML = '';
+      const pre = document.createElement('pre');
+      pre.textContent = JSON.stringify(scheduleData, null, 2);
+      dataDiv.appendChild(pre);
+
+      if (currentUser) {
+        const btn = document.createElement('button');
+        btn.textContent = '修改資料並儲存';
+        btn.onclick = async () => {
+          scheduleData.updatedAt = new Date().toISOString();
+          await setDoc(dataRef, scheduleData);
+          alert('✅ 資料已儲存！');
+        };
+        dataDiv.appendChild(btn);
+      }
+    }
+
+    loadSchedule();
 
   // —— helpers —— 
   function getCellKey(year, month, emp, day) {
