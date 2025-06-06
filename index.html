@@ -225,38 +225,7 @@ td.work             { background: #fff;    color: #000; }
       return `${year}-${mm}-${emp}-${dd}`;
     }
 
-    function generateTable() {
-      const yearInput = document.getElementById('yearInput');
-      const monthInput = document.getElementById('monthInput');
-      const year = parseInt(yearInput?.value || '2025', 10);
-      const month = parseInt(monthInput?.value || '3', 10);
-      const table = document.getElementById('scheduleTable');
-      if (!table) return;
 
-      table.innerHTML = '';
-      const daysInMonth = new Date(year, month, 0).getDate();
-
-      const header = document.createElement('tr');
-      header.innerHTML = `<th>員工</th>` +
-        Array.from({ length: daysInMonth }, (_, i) => `<th>${i + 1}</th>`).join('');
-      table.appendChild(header);
-
-      employees.forEach(emp => {
-        const tr = document.createElement('tr');
-        const tdName = document.createElement('td');
-        tdName.textContent = emp;
-        tr.appendChild(tdName);
-
-        for (let d = 1; d <= daysInMonth; d++) {
-          const td = document.createElement('td');
-          const key = getCellKey(year, month, emp, d);
-          const val = scheduleData[key] || '';
-          td.textContent = val;
-          tr.appendChild(td);
-        }
-        table.appendChild(tr);
-      });
-    }
 
     window.addEventListener('DOMContentLoaded', async () => {
       await loadSchedule();
