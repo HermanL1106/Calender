@@ -196,7 +196,6 @@ onAuthStateChanged(auth, user => {
     loginBtn.style.display = '';
     logoutBtn.style.display = 'none';
   }
-  generateTable();
 });
 
 // 讀取 Firebase 資料
@@ -378,7 +377,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('monthInput').value = today.getMonth() + 1;
 
   initPalette();
-  generateTable();
 
   const addBtn = document.getElementById('addEmpBtn');
   const removeBtn = document.getElementById('removeEmpBtn');
