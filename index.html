@@ -200,18 +200,17 @@ td.work             { background: #fff;    color: #000; }
       renderSchedule();
     });
 
-    async function loadSchedule() {
-      try {
-        const snap = await getDoc(dataRef);
-        if (snap.exists()) {
-          scheduleData = snap.data();
-          localStorage.setItem('scheduleData', JSON.stringify(scheduleData));
-        } else {
-          scheduleData = { notes: "尚無資料" };
-        }
-      } catch (e) {
-        scheduleData = { error: "讀取資料失敗：" + e.message };
-      }
+async function loadSchedule() {
+  try {
+    const snap = await getDoc(dataRef);
+    if (snap.exists()) {
+      scheduleData = snap.data();
+    } else {
+      scheduleData = { notes: "尚無資料" };
+    }
+  } catch (e) {
+    scheduleData = { error: "讀取資料失敗：" + e.message };
+  }
       renderSchedule();
     }
 
