@@ -34,8 +34,11 @@
   <div id="schedule"></div>
 
   <script type="module">
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+
 
     const firebaseConfig = {
       apiKey: "AIzaSyDRgKCsoHWBc1flzJY9ZrUtSYGpCWdoLjw",
@@ -48,6 +51,25 @@
     };
 
     const app = initializeApp(firebaseConfig);
+	const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
+
+// 自動處理登入狀態
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    console.log("登入使用者：", user.displayName);
+  } else {
+    // 未登入，自動跳出登入流程
+    signInWithPopup(auth, provider)
+      .then((result) => {
+        console.log("登入成功：", result.user.displayName);
+      })
+      .catch((error) => {
+        console.error("登入失敗：", error);
+        alert("登入失敗，請重新整理頁面");
+      });
+  }
+});
     const db = getFirestore(app);
     const docRef = doc(db, "schedules", "shared");
 
