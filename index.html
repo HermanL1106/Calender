@@ -117,11 +117,10 @@ td.work             { background: #fff;    color: #000; }
   </style>
 </head>
 <body>
- <div style="margin-bottom:10px;">
-    <span id="Status">尚未登入</span>
-    <button id="loginBtn">Google 登入</button>
-    <button id="logoutBtn" style="display:none;">登出</button>
-  </div>
+  <span id="status">尚未登入</span>
+  <button id="loginBtn">Google 登入</button>
+  <button id="logoutBtn" style="display:none;">登出</button>
+  <div id="dataContainer"></div>
 
   <div id="quickLinks">
     <button onclick="location.href='https://hermanl1106.github.io/Calender/'">班表</button>
@@ -160,7 +159,7 @@ td.work             { background: #fff;    color: #000; }
       apiKey: "AIzaSyDRgKCsoHWBc1flzJY9ZrUtSYGpCWdoLjw",
       authDomain: "wutan-calender.firebaseapp.com",
       projectId: "wutan-calender",
-      storageBucket: "wutan-calender.firebasestorage.app",
+      storageBucket: "wutan-calender.appspot.com",
       messagingSenderId: "716247230665",
       appId: "1:716247230665:web:9baed0888ae66be4988518",
       measurementId: "G-LKJ92DKZWY"
@@ -194,7 +193,7 @@ td.work             { background: #fff;    color: #000; }
         loginBtn.style.display = '';
         logoutBtn.style.display = 'none';
       }
-      renderSchedule(); // 每次登入狀態變更都更新 UI
+      renderSchedule();
     });
 
     async function loadSchedule() {
@@ -229,6 +228,7 @@ td.work             { background: #fff;    color: #000; }
       }
     }
 
+    window.addEventListener('DOMContentLoaded', loadSchedule);
 
   // —— helpers —— 
   function getCellKey(year, month, emp, day) {
