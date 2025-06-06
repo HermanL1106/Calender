@@ -188,7 +188,7 @@ div id="authBar">
     const statusSpan = document.getElementById('status');
     const dataDiv = document.getElementById('dataContainer');
 
-    loginBtn.onclick = () => signInWithPopup(auth, provider);
+    loginBtn.onclick = () => signInWithPopup(auth, provider).catch(err => alert("登入失敗：" + err.message));
     logoutBtn.onclick = () => signOut(auth);
 
     onAuthStateChanged(auth, user => {
@@ -202,14 +202,19 @@ div id="authBar">
         loginBtn.style.display = '';
         logoutBtn.style.display = 'none';
       }
+      renderSchedule(); // 每次登入狀態變更都更新 UI
     });
 
     async function loadSchedule() {
-      const snap = await getDoc(dataRef);
-      if (snap.exists()) {
-        scheduleData = snap.data();
-      } else {
-        scheduleData = { notes: "尚無資料" };
+      try {
+        const snap = await getDoc(dataRef);
+        if (snap.exists()) {
+          scheduleData = snap.data();
+        } else {
+          scheduleData = { notes: "尚無資料" };
+        }
+      } catch (e) {
+        scheduleData = { error: "讀取資料失敗：" + e.message };
       }
       renderSchedule();
     }
@@ -232,7 +237,6 @@ div id="authBar">
       }
     }
 
-    loadSchedule();
 
   // —— helpers —— 
   function getCellKey(year, month, emp, day) {
