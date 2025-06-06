@@ -58,11 +58,12 @@ const provider = new GoogleAuthProvider();
 onAuthStateChanged(auth, (user) => {
   if (user) {
     console.log("登入使用者：", user.displayName);
+    startApp(); // ✅ 登入後再啟動主程式
   } else {
-    // 未登入，自動跳出登入流程
     signInWithPopup(auth, provider)
       .then((result) => {
         console.log("登入成功：", result.user.displayName);
+        startApp(); // ✅ 登入後再啟動主程式
       })
       .catch((error) => {
         console.error("登入失敗：", error);
@@ -70,6 +71,7 @@ onAuthStateChanged(auth, (user) => {
       });
   }
 });
+
     const db = getFirestore(app);
     const docRef = doc(db, "schedules", "shared");
 
