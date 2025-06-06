@@ -185,7 +185,8 @@ const statusSpan = document.getElementById('status');
 loginBtn.onclick = () => signInWithPopup(auth, provider).catch(err => alert("登入失敗：" + err.message));
 logoutBtn.onclick = () => signOut(auth);
 
-onAuthStateChanged(auth, user => {
+// ✅ 修正：登入登出時要重新讀取資料
+onAuthStateChanged(auth, async user => {
   currentUser = user;
   if (user) {
     statusSpan.textContent = `已登入：${user.displayName || user.email}`;
@@ -196,25 +197,26 @@ onAuthStateChanged(auth, user => {
     loginBtn.style.display = '';
     logoutBtn.style.display = 'none';
   }
+  await loadSchedule(); // ✅ 確保登入後也重新取得資料並更新表格
 });
 
-// 讀取 Firebase 資料
 async function loadSchedule() {
   try {
     const snap = await getDoc(dataRef);
     if (snap.exists()) {
       scheduleData = snap.data();
       localStorage.setItem('scheduleData', JSON.stringify(scheduleData));
+      console.log("✅ Firebase 資料載入成功：", scheduleData); // 除錯用
     } else {
-      scheduleData = { notes: "尚無資料" };
+      scheduleData = {};
     }
   } catch (e) {
-    scheduleData = { error: "讀取資料失敗：" + e.message };
+    console.error("❌ 資料讀取失敗：", e.message);
+    scheduleData = {};
   }
-	generateTable(); // ✅ 改這裡，保證資料讀取完後再繪製表格
+  generateTable(); // ✅ 確保讀完資料後更新畫面
 }
 
-// 儲存至 Firebase
 async function syncToFirebase() {
   if (currentUser) {
     await setDoc(dataRef, scheduleData);
@@ -227,7 +229,6 @@ function getCellKey(year, month, emp, day) {
   return `${year}-${mm}-${emp}-${dd}`;
 }
 
-// 調色盤設定
 const palette = [
   { code: '休', cls: 'rest-red' },
   { code: '休', cls: 'rest-lightblue' },
@@ -281,7 +282,6 @@ async function attachCellClick() {
   });
 }
 
-// 產生班表表格
 function generateTable() {
   const year = parseInt(document.getElementById('yearInput').value, 10);
   const month = parseInt(document.getElementById('monthInput').value, 10);
@@ -323,7 +323,8 @@ function generateTable() {
 
     for (let d = 1; d <= daysInMonth; d++) {
       const td = document.createElement('td');
-      td.dataset.emp = emp; td.dataset.day = d;
+      td.dataset.emp = emp;
+      td.dataset.day = d;
       const key = getCellKey(year, month, emp, d);
       const code = scheduleData[key] || '●';
       td.textContent = code;
@@ -369,88 +370,12 @@ function generateTable() {
   if (!locked) attachCellClick();
 }
 
-// 頁面初始化
 window.addEventListener('DOMContentLoaded', async () => {
-  await loadSchedule();
-  const today = new Date();
-  document.getElementById('yearInput').value = today.getFullYear();
-  document.getElementById('monthInput').value = today.getMonth() + 1;
-
-  initPalette();
-
-  const addBtn = document.getElementById('addEmpBtn');
-  const removeBtn = document.getElementById('removeEmpBtn');
-  const resetBtn = document.getElementById('resetAllBtn');
-  const unlockBtn = document.getElementById('unlockBtn');
-
-  [addBtn, removeBtn, resetBtn].forEach(b => b.disabled = locked);
-
-  unlockBtn.addEventListener('click', () => {
-    const pw = prompt('請輸入解鎖密碼', '');
-    if (pw === '123') {
-      locked = false;
-      [addBtn, removeBtn, resetBtn].forEach(b => b.disabled = false);
-      alert('已解鎖');
-      generateTable();
-    } else alert('密碼錯誤');
-  });
-
-  addBtn.addEventListener('click', async () => {
-    if (locked) return alert('請先解鎖');
-    const name = prompt('輸入新員工名稱：')?.trim(); if (!name) return;
-    removedEmployees = removedEmployees.filter(r => r.name !== name);
-    localStorage.setItem('removedEmployees', JSON.stringify(removedEmployees));
-    if (!employees.includes(name)) {
-      employees.push(name);
-      localStorage.setItem('employees', JSON.stringify(employees));
-    } else alert('已存在');
-    await syncToFirebase();
-    generateTable();
-  });
-
-  removeBtn.addEventListener('click', async () => {
-    if (locked) return alert('請先解鎖');
-    const name = prompt('輸入要刪除員工：')?.trim();
-    if (!name || !employees.includes(name)) return alert('找不到');
-    const year = parseInt(document.getElementById('yearInput').value, 10),
-          month = parseInt(document.getElementById('monthInput').value, 10);
-    removedEmployees.push({ name, year, month });
-    localStorage.setItem('removedEmployees', JSON.stringify(removedEmployees));
-    scheduleData = Object.fromEntries(Object.entries(scheduleData).filter(([k]) => {
-      const [ky, km, ename] = k.split('-', 3);
-      return !(ename === name && (+ky > year || (+ky === year && +km >= month)));
-    }));
-    localStorage.setItem('scheduleData', JSON.stringify(scheduleData));
-    await syncToFirebase();
-    generateTable();
-  });
-
-  resetBtn.addEventListener('click', async () => {
-    if (locked) return alert('請先解鎖');
-    const year = parseInt(document.getElementById('yearInput').value, 10),
-          month = parseInt(document.getElementById('monthInput').value, 10);
-    const daysInMonth = new Date(year, month, 0).getDate();
-    const displayEmps = employees.filter(emp => {
-      const recs = removedEmployees.filter(r => r.name === emp);
-      if (!recs.length) return true;
-      recs.sort((a, b) => (a.year - b.year) || (a.month - b.month));
-      const rec = recs[0];
-      return year < rec.year || (year === rec.year && month < rec.month);
-    });
-    displayEmps.forEach(emp => {
-      for (let d = 1; d <= daysInMonth; d++) {
-        scheduleData[getCellKey(year, month, emp, d)] = '●';
-      }
-    });
-    localStorage.setItem('scheduleData', JSON.stringify(scheduleData));
-    await syncToFirebase();
-    generateTable();
-  });
-
-  document.getElementById('yearInput').addEventListener('change', generateTable);
-  document.getElementById('monthInput').addEventListener('change', generateTable);
+  await loadSchedule(); // ✅ 初始讀取 + 內部會呼叫 generateTable()
+  initPalette();        // ✅ Palette 是畫面操作必要元件
 });
 </script>
+
 
 
 
