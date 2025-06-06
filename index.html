@@ -262,12 +262,6 @@ td.work             { background: #fff;    color: #000; }
       await loadSchedule();
       generateTable();
     });
-  // —— helpers —— 
-  function getCellKey(year, month, emp, day) {
-    const mm = String(month).padStart(2,'0');
-    const dd = String(day).padStart(2,'0');
-    return `${year}-${mm}-${emp}-${dd}`;
-  }
 
   // —— 调色盘设置 —— 
   const palette = [
