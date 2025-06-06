@@ -150,6 +150,7 @@ td.work             { background: #fff;    color: #000; }
   </table>
 
 
+    <!-- Firebase 與程式碼載入 -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -173,6 +174,9 @@ td.work             { background: #fff;    color: #000; }
     let currentUser = null;
     const dataRef = doc(db, "calendarData", "master");
     let scheduleData = {};
+    let employees = JSON.parse(localStorage.getItem('employees') || '["盆","綠","勳","洪","科","翔","承"]');
+    let removedEmployees = JSON.parse(localStorage.getItem('removedEmployees') || '[]');
+    let locked = true;
 
     const loginBtn = document.getElementById('loginBtn');
     const logoutBtn = document.getElementById('logoutBtn');
@@ -201,6 +205,7 @@ td.work             { background: #fff;    color: #000; }
         const snap = await getDoc(dataRef);
         if (snap.exists()) {
           scheduleData = snap.data();
+          localStorage.setItem('scheduleData', JSON.stringify(scheduleData));
         } else {
           scheduleData = { notes: "尚無資料" };
         }
@@ -228,8 +233,17 @@ td.work             { background: #fff;    color: #000; }
       }
     }
 
-    window.addEventListener('DOMContentLoaded', loadSchedule);
+    async function syncToFirebase() {
+      if (currentUser) {
+        await setDoc(dataRef, scheduleData);
+      }
+    }
 
+    window.addEventListener('DOMContentLoaded', async () => {
+      await loadSchedule();
+      initPalette();
+      generateTable();
+    });
   // —— helpers —— 
   function getCellKey(year, month, emp, day) {
     const mm = String(month).padStart(2,'0');
